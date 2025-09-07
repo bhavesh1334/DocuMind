@@ -115,7 +115,7 @@ Return only the enhanced query without any explanations.`,
 
       // Step 3: Prepare context for LLM
       const relevantContext = retrievedChunks
-        .filter(chunk => chunk.score > 0.7) // Filter by relevance score
+        .filter(chunk => chunk.score > 0.1) // Lower threshold for better recall
         .map((chunk, index) => 
           `[Source ${index + 1}]: ${chunk.content}`
         )
