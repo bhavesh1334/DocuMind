@@ -38,7 +38,6 @@ export const Header = ({ user, onLogin, onLogout }: HeaderProps) => {
         {/* User Section */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <div className="h-6 w-px bg-border mx-2" />
           {/* {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
