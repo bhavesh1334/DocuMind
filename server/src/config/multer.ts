@@ -2,7 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { validateFileType, validateFileSize } from '@/utils/validation';
+import { validateFileType } from '@/utils/validation';
 
 // Ensure upload directory exists
 const uploadDir = process.env.UPLOAD_DIR || 'uploads';

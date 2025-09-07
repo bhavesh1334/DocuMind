@@ -66,16 +66,28 @@ export const sendMessage = async (req: Request, res: Response) => {
     } else {
       // Create new chat
       const title = await chatService.generateTitle(message);
+      
+      // If no documentIds provided, use all completed documents
+      let defaultDocumentIds = documentIds || [];
+      if (!documentIds || documentIds.length === 0) {
+        const allDocs = await Document.find({ status: 'completed' }).select('_id');
+        defaultDocumentIds = allDocs.map(doc => doc._id.toString());
+      }
+      
       chat = new Chat({
         title,
-        documentIds: documentIds || [],
+        documentIds: defaultDocumentIds,
         messages: [],
       });
       isNewChat = true;
     }
 
-    // Validate document IDs
-    const targetDocumentIds = documentIds || chat.documentIds;
+    // Validate document IDs - use all completed docs if none specified
+    let targetDocumentIds = documentIds || chat.documentIds;
+    if (!targetDocumentIds || targetDocumentIds.length === 0) {
+      const allDocs = await Document.find({ status: 'completed' }).select('_id');
+      targetDocumentIds = allDocs.map(doc => doc._id.toString());
+    }
     if (targetDocumentIds.length > 0) {
       const existingDocs = await Document.find({
         _id: { $in: targetDocumentIds },

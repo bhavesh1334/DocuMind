@@ -37,11 +37,15 @@ const documentSchema = new Schema<IDocument>(
     },
     content: {
       type: String,
-      required: true
+      required: function(this: IDocument) {
+        return this.status === 'completed';
+      }
     },
     summary: {
       type: String,
-      required: true,
+      required: function(this: IDocument) {
+        return this.status === 'completed';
+      },
       maxlength: 1000
     },
     type: {
