@@ -1,8 +1,4 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Brain, LogOut, Settings, User, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 interface HeaderProps {
@@ -43,7 +39,7 @@ export const Header = ({ user, onLogin, onLogout }: HeaderProps) => {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <div className="h-6 w-px bg-border mx-2" />
-          {user ? (
+          {/* {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -88,7 +84,7 @@ export const Header = ({ user, onLogin, onLogout }: HeaderProps) => {
             <Button onClick={onLogin} className="gradient-primary shadow-elegant">
               Sign In
             </Button>
-          )}
+          )} */}
         </div>
       </div>
     </header>

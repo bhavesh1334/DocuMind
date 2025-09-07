@@ -31,8 +31,7 @@
     "pdf-parse": "^1.1.1",
     "uuid": "^12.0.0",
     "winston": "^3.17.0",
-    "youtube-transcript": "^1.2.1",
-    "ytdl-core": "^4.11.5"
+    "youtubei.js": "^15.0.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

@@ -39,12 +39,12 @@ const Index = () => {
       {/* Main Content */}
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Left Panel - File Upload */}
-        <div className="w-96 flex-shrink-0">
+        <div className="w-80 lg:w-96 flex-shrink-0 min-w-0 border-r border-border bg-card/50">
           <FileUploadSection />
         </div>
         
         {/* Right Panel - Chat Interface */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <ChatInterface />
         </div>
       </div>

@@ -6,30 +6,52 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useChatOperations, useChat } from '@/hooks/useApi';
+import { Chat, Message as ApiMessage } from '@/lib/api';
 
-interface Message {
-  id: string;
-  type: 'user' | 'ai';
+interface DisplayMessage {
+  _id: string;
+  role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
-  sources?: string[];
+  createdAt: string;
+  sources?: Array<{
+    documentId: string;
+    title: string;
+    relevanceScore: number;
+  }>;
 }
 
 export const ChatInterface = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'ai',
-      content: "👋 Hello! I'm your AI assistant. Upload some documents on the left, and I'll help you analyze, summarize, or answer questions about your content. What would you like to explore today?",
-      timestamp: new Date(),
-    },
-  ]);
   const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // API hooks
+  const { data: currentChatResponse } = useChat(currentChatId || '');
+  const { sendMessage, createChat, isSending } = useChatOperations();
+
+  const currentChat = currentChatResponse?.data;
+
+  // Welcome message when no chat is selected
+  const welcomeMessage: DisplayMessage = {
+    _id: 'welcome',
+    role: 'assistant',
+    content: "👋 Hello! I'm your AI assistant. Upload some documents on the left, and I'll help you analyze, summarize, or answer questions about your content. What would you like to explore today?",
+    createdAt: new Date().toISOString(),
+  };
+
+  // Update messages when chat data changes
+  useEffect(() => {
+    if (currentChat?.messages) {
+      setMessages(currentChat.messages);
+    } else if (!currentChatId) {
+      setMessages([welcomeMessage]);
+    }
+  }, [currentChat?.messages, currentChatId]);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -39,41 +61,58 @@ export const ChatInterface = () => {
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isSending) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      content: inputValue,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    const messageText = inputValue;
     setInputValue('');
-    setIsLoading(true);
 
-    // Simulate AI response (replace with actual API call)
-    try {
-      setTimeout(() => {
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'ai',
-          content: `I understand you're asking about: "${userMessage.content}". Based on your uploaded documents, I can help you with analysis, summarization, and answering specific questions. However, I need you to connect to a backend service to process your documents and provide real-time responses with RAG functionality.`,
-          timestamp: new Date(),
-          sources: ['Document 1.pdf', 'Article from URL'],
-        };
-        setMessages((prev) => [...prev, aiMessage]);
-        setIsLoading(false);
-      }, 2000);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setIsLoading(false);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive",
-      });
-    }
+    // Add user message immediately to UI for better UX
+    const userMessage: DisplayMessage = {
+      _id: `temp-${Date.now()}`,
+      role: 'user',
+      content: messageText,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+
+    sendMessage(
+      { message: messageText, chatId: currentChatId || undefined },
+      {
+        onSuccess: (response) => {
+          // If a new chat was created, set it as current
+          if (response.data?.chatId && !currentChatId) {
+            setCurrentChatId(response.data.chatId);
+          }
+          
+          // Add the AI response immediately to the UI
+          if (response.data?.assistantMessage) {
+            const aiMessage: DisplayMessage = {
+              _id: `ai-${Date.now()}`,
+              role: 'assistant',
+              content: response.data.assistantMessage.content,
+              createdAt: response.data.assistantMessage.timestamp || new Date().toISOString(),
+              sources: response.data.assistantMessage.metadata?.sources,
+            };
+            
+            setMessages(prev => {
+              // Replace the temporary user message with the final user message and add AI response
+              const withoutTemp = prev.filter(msg => msg._id !== userMessage._id);
+              const finalUserMessage = {
+                ...userMessage,
+                _id: `user-${Date.now()}`,
+                createdAt: response.data.userMessage?.timestamp || userMessage.createdAt,
+              };
+              return [...withoutTemp, finalUserMessage, aiMessage];
+            });
+          }
+        },
+        onError: () => {
+          // Remove the temporary user message on error
+          setMessages(prev => prev.filter(msg => msg._id !== userMessage._id));
+        }
+      }
+    );
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -101,23 +140,25 @@ export const ChatInterface = () => {
     }
   };
 
-  const formatTimestamp = (timestamp: Date) => {
-    return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
     <div className="h-full flex flex-col bg-gradient-surface">
-      {/* Header */}
+      {/* Chat Header */}
       <div className="p-6 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
             <Sparkles className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-foreground">AI Assistant</h2>
-            {/* <p className="text-sm text-muted-foreground">
-              Powered by advanced RAG technology
-            </p> */}
+            <h2 className="text-xl font-semibold text-foreground">
+              AI Assistant
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Ask questions about your documents
+            </p>
           </div>
         </div>
       </div>
@@ -127,20 +168,20 @@ export const ChatInterface = () => {
         <div className="space-y-6 max-w-4xl mx-auto">
           {messages.map((message) => (
             <div
-              key={message.id}
+              key={message._id}
               className={`flex gap-4 ${
-                message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
+                message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
               }`}
             >
               {/* Avatar */}
               <div
                 className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  message.type === 'user'
+                  message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground'
                 }`}
               >
-                {message.type === 'user' ? (
+                {message.role === 'user' ? (
                   <User className="h-4 w-4" />
                 ) : (
                   <Bot className="h-4 w-4" />
@@ -148,10 +189,10 @@ export const ChatInterface = () => {
               </div>
 
               {/* Message Content */}
-              <div className={`flex-1 max-w-3xl ${message.type === 'user' ? 'text-right' : 'text-left'}`}>
+              <div className={`flex-1 max-w-3xl ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
                 <Card
                   className={`${
-                    message.type === 'user'
+                    message.role === 'user'
                       ? 'bg-chat-bubble-user text-chat-bubble-user-foreground ml-8'
                       : 'bg-chat-bubble-ai text-chat-bubble-ai-foreground mr-8'
                   } transition-all duration-200 hover:shadow-md group`}
@@ -171,8 +212,9 @@ export const ChatInterface = () => {
                                 key={index}
                                 variant="secondary"
                                 className="text-xs px-2 py-1"
+                                title={`Relevance: ${(source.relevanceScore * 100).toFixed(1)}%`}
                               >
-                                {source}
+                                {source.title}
                               </Badge>
                             ))}
                           </div>
@@ -180,7 +222,7 @@ export const ChatInterface = () => {
 
                         {/* Timestamp */}
                         <p className="text-xs opacity-60 mt-2">
-                          {formatTimestamp(message.timestamp)}
+                          {formatTimestamp(message.createdAt)}
                         </p>
                       </div>
 
@@ -188,10 +230,10 @@ export const ChatInterface = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => copyMessage(message.id, message.content)}
+                        onClick={() => copyMessage(message._id, message.content)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 p-0"
                       >
-                        {copiedMessageId === message.id ? (
+                        {copiedMessageId === message._id ? (
                           <Check className="h-3 w-3" />
                         ) : (
                           <Copy className="h-3 w-3" />
@@ -205,7 +247,7 @@ export const ChatInterface = () => {
           ))}
 
           {/* Loading Indicator */}
-          {isLoading && (
+          {isSending && (
             <div className="flex gap-4">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
                 <Bot className="h-4 w-4" />
@@ -235,15 +277,15 @@ export const ChatInterface = () => {
                 onKeyPress={handleKeyPress}
                 placeholder="Ask me anything about your documents..."
                 className="pr-12 h-12 transition-smooth"
-                disabled={isLoading}
+                disabled={isSending}
               />
             </div>
             <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
+              disabled={!inputValue.trim() || isSending}
               className="h-12 px-6 gap-2 transition-smooth"
             >
-              {isLoading ? (
+              {isSending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
@@ -251,7 +293,6 @@ export const ChatInterface = () => {
               Send
             </Button>
           </div>
-       
         </div>
       </div>
     </div>
