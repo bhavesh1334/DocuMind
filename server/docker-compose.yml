@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: document-chat-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    networks:
+      - document-chat-network
+
+  # MongoDB Database (optional - if you want to use Docker for MongoDB too)
+  mongodb:
+    image: mongo:7.0
+    container_name: document-chat-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=document-chat
+    restart: unless-stopped
+    networks:
+      - document-chat-network
+
+  # Redis (optional - for future caching needs)
+  redis:
+    image: redis:7-alpine
+    container_name: document-chat-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - document-chat-network
+
+  # Backend Application (uncomment when ready to containerize)
+  # backend:
+  #   build: .
+  #   container_name: document-chat-backend
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     - NODE_ENV=production
+  #     - PORT=3001
+  #     - MONGODB_URI=mongodb://admin:password@mongodb:27017/document-chat?authSource=admin
+  #     - QDRANT_HOST=qdrant
+  #     - QDRANT_PORT=6333
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #   volumes:
+  #     - ./uploads:/app/uploads
+  #     - ./logs:/app/logs
+  #   depends_on:
+  #     - mongodb
+  #     - qdrant
+  #   restart: unless-stopped
+  #   networks:
+  #     - document-chat-network
+
+volumes:
+  qdrant_storage:
+  mongodb_data:
+  redis_data:
+
+networks:
+  document-chat-network:
+    driver: bridge

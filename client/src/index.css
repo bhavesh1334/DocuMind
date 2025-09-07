@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern AI-inspired Design System */
+
+@layer base {
+  :root {
+    /* Base colors - Clean, professional palette */
+    --background: 0 0% 100%;
+    --foreground: 210 40% 8%;
+
+    /* Surface colors */
+    --card: 0 0% 100%;
+    --card-foreground: 210 40% 8%;
+    --surface: 240 10% 99%;
+    --surface-variant: 240 10% 96%;
+
+    /* Interactive elements */
+    --primary: 235 85% 65%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 235 85% 70%;
+    --primary-glow: 235 85% 65%;
+
+    /* Secondary brand colors */
+    --secondary: 240 10% 96%;
+    --secondary-foreground: 210 40% 8%;
+
+    /* Muted elements */
+    --muted: 240 10% 96%;
+    --muted-foreground: 210 40% 48%;
+
+    /* Accent for highlights */
+    --accent: 280 85% 70%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status colors */
+    --success: 160 85% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 40 85% 55%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 240 10% 90%;
+    --input: 240 10% 96%;
+    --ring: 235 85% 65%;
+
+    /* AI Chat specific colors */
+    --chat-bubble-user: 235 85% 65%;
+    --chat-bubble-user-foreground: 0 0% 100%;
+    --chat-bubble-ai: 240 10% 96%;
+    --chat-bubble-ai-foreground: 210 40% 8%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(235 85% 65%), hsl(280 85% 70%));
+    --gradient-surface: linear-gradient(180deg, hsl(0 0% 100%), hsl(240 10% 99%));
+    --gradient-glow: radial-gradient(circle at 50% 0%, hsl(235 85% 65% / 0.1), transparent 70%);
+
+    /* Shadows */
+    --shadow-elegant: 0 4px 20px -2px hsl(235 85% 65% / 0.1);
+    --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.08);
+    --shadow-glow: 0 0 40px hsl(235 85% 65% / 0.3);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --radius: 12px;
+
+    /* Additional utility colors */
+    --surface: 240 10% 99%;
+    --surface-variant: 240 10% 96%;
+    --primary-hover: 235 85% 70%;
+    --primary-glow: 235 85% 65%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 40% 8%;
+  }
+
+  .dark {
+    /* Base colors - Dark mode */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    /* Surface colors */
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --surface: 222 47% 8%;
+    --surface-variant: 222 47% 14%;
+
+    /* Interactive elements */
+    --primary: 235 85% 65%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 235 85% 70%;
+    --primary-glow: 235 85% 65%;
+
+    /* Secondary brand colors */
+    --secondary: 222 47% 14%;
+    --secondary-foreground: 210 40% 98%;
+
+    /* Muted elements */
+    --muted: 222 47% 14%;
+    --muted-foreground: 210 40% 65%;
+
+    /* Accent for highlights */
+    --accent: 280 85% 70%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status colors */
+    --success: 160 85% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 40 85% 55%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 222 47% 20%;
+    --input: 222 47% 14%;
+    --ring: 235 85% 65%;
+
+    /* AI Chat specific colors */
+    --chat-bubble-user: 235 85% 65%;
+    --chat-bubble-user-foreground: 0 0% 100%;
+    --chat-bubble-ai: 222 47% 14%;
+    --chat-bubble-ai-foreground: 210 40% 98%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(235 85% 65%), hsl(280 85% 70%));
+    --gradient-surface: linear-gradient(180deg, hsl(222 47% 11%), hsl(222 47% 8%));
+    --gradient-glow: radial-gradient(circle at 50% 0%, hsl(235 85% 65% / 0.2), transparent 70%);
+
+    /* Shadows */
+    --shadow-elegant: 0 4px 20px -2px hsl(0 0% 0% / 0.3);
+    --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.2);
+    --shadow-glow: 0 0 40px hsl(235 85% 65% / 0.4);
+
+    /* Popover */
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-surface {
+    background: var(--gradient-surface);
+  }
+  
+  .gradient-glow {
+    background: var(--gradient-glow);
+  }
+  
+  .shadow-elegant {
+    box-shadow: var(--shadow-elegant);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+}
