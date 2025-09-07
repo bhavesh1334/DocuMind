@@ -169,7 +169,9 @@ export const addText = async (req: Request, res: Response) => {
 // Get all documents
 export const getDocuments = async (req: Request, res: Response) => {
   try {
-    const { page, limit, sort, type, status } = req.query as any;
+    // Use validated query parameters with defaults
+    const validatedQuery = (req as any).validatedQuery || {};
+    const { page = 1, limit = 10, sort = '-createdAt', type, status } = validatedQuery;
     
     const filter: any = {};
     if (type) filter.type = type;
@@ -198,10 +200,10 @@ export const getDocuments = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error('Error fetching document summary:', error);
+    logger.error('Error fetching documents:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch document summary',
+      message: 'Failed to fetch documents',
     });
   }
 };
@@ -412,7 +414,9 @@ async function processTextAsync(documentId: string, content: string, title: stri
 // Get document summary (for listing)
 export const getDocumentSummary = async (req: Request, res: Response) => {
   try {
-    const { page, limit, sort, type, status } = req.query as any;
+    // Use validated query parameters with defaults
+    const validatedQuery = (req as any).validatedQuery || {};
+    const { page = 1, limit = 10, sort = '-createdAt', type, status } = validatedQuery;
     
     const filter: any = {};
     if (type) filter.type = type;
