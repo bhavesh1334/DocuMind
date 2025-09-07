@@ -1,0 +1,65 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables (root level)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs (root level)
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+
+# Documentation build
+docs/build/
+
+# Coverage reports (if running from root)
+coverage/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Database files
+*.sqlite
+*.db
+
+# Uploads directory (if you have file uploads at root)
+uploads/
+
+# Build artifacts (root level)
+build/
+dist/
+
+# Package manager files
+package-lock.json.bak
+yarn.lock.bak
