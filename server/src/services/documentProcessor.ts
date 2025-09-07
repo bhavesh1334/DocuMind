@@ -6,7 +6,7 @@ import mammoth from 'mammoth';
 import csv from 'csv-parser';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { YoutubeTranscript } from 'youtube-transcript';
+import { YoutubeLoader } from '@langchain/community/document_loaders/web/youtube';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import { ChatOpenAI } from '@langchain/openai';
 import { v4 as uuidv4 } from 'uuid';
@@ -138,46 +138,96 @@ class DocumentProcessor {
     }
   }
 
-  async processYouTubeURL(url: string): Promise<ProcessedDocument> {
+  async processYouTubeURL(url: string, options?: { language?: string; country?: string }): Promise<ProcessedDocument> {
     try {
       const videoId = this.extractYouTubeVideoId(url);
       if (!videoId) {
         throw new Error('Invalid YouTube URL');
       }
 
-      // Get transcript
-      const transcript = await YoutubeTranscript.fetchTranscript(videoId);
-      const content = transcript.map(entry => entry.text).join(' ');
+      // Use LangChain YoutubeLoader to fetch transcript and video info
+      const loaderOptions = {
+        language: options?.language || 'en',
+        addVideoInfo: true,
+      };
+
+      const loader = YoutubeLoader.createFromUrl(url, loaderOptions);
+      const docs = await loader.load();
+
+      if (!docs || docs.length === 0) {
+        throw new Error('No content could be loaded from the YouTube video');
+      }
+
+      const doc = docs[0];
+      const { pageContent, metadata: docMetadata } = doc;
+
+      // Extract title from metadata or use fallback
+      const title = docMetadata.title || docMetadata.source || `YouTube Video (${videoId})`;
       
-      if (!content || content.trim().length === 0) {
-        throw new Error('No transcript available for this video');
+      // Format content with video information
+      let content = '';
+      if (docMetadata.title) {
+        content += `Title: ${docMetadata.title}\n`;
       }
-
-      // Extract video title (simplified - in production, you might want to use YouTube API)
-      let title = `YouTube Video (${videoId})`;
-      try {
-        const response = await axios.get(url);
-        const $ = cheerio.load(response.data);
-        const pageTitle = $('title').text();
-        if (pageTitle && pageTitle !== 'YouTube') {
-          title = pageTitle.replace(' - YouTube', '');
-        }
-      } catch {
-        // Fallback to default title if extraction fails
+      if (docMetadata.author) {
+        content += `Channel: ${docMetadata.author}\n`;
       }
-
+      if (docMetadata.length) {
+        content += `Duration: ${this.formatDuration(docMetadata.length)}\n`;
+      }
+      if (docMetadata.description) {
+        content += `Description: ${docMetadata.description}\n`;
+      }
+      
+      content += `\nTranscript:\n${pageContent}`;
+      
+      // Prepare metadata for processing
       const metadata = {
         url,
         videoId,
         platform: 'youtube',
-        duration: transcript.length > 0 ? transcript[transcript.length - 1].offset : 0,
-        transcriptLength: transcript.length,
+        title: docMetadata.title,
+        author: docMetadata.author,
+        description: docMetadata.description,
+        duration: docMetadata.length || 0,
+        durationFormatted: docMetadata.length ? this.formatDuration(docMetadata.length) : 'Unknown',
+        language: options?.language || 'en',
+        hasTranscript: pageContent && pageContent.trim().length > 0,
+        extractedAt: new Date().toISOString(),
+        source: docMetadata.source,
       };
 
       return await this.processContent(content, title, metadata);
     } catch (error) {
       logger.error(`Error processing YouTube URL ${url}:`, error);
-      throw error;
+      
+      // Fallback: try to extract basic info from the URL
+      try {
+        const videoId = this.extractYouTubeVideoId(url);
+        const response = await axios.get(url);
+        const $ = cheerio.load(response.data);
+        const pageTitle = $('title').text();
+        const title = pageTitle && pageTitle !== 'YouTube' ? pageTitle.replace(' - YouTube', '') : `YouTube Video (${videoId})`;
+        const metaDescription = $('meta[name="description"]').attr('content') || '';
+        
+        const fallbackContent = `Title: ${title}\nDescription: ${metaDescription}\n\nNote: Transcript could not be loaded for this video. This may be due to privacy settings, unavailable captions, or other restrictions.`;
+        
+        const fallbackMetadata = {
+          url,
+          videoId,
+          platform: 'youtube',
+          title,
+          description: metaDescription,
+          hasTranscript: false,
+          fallbackContent: true,
+          extractedAt: new Date().toISOString(),
+        };
+        
+        return await this.processContent(fallbackContent, title, fallbackMetadata);
+      } catch (fallbackError) {
+        logger.error(`Fallback processing also failed for ${url}:`, fallbackError);
+        throw new Error(`Failed to process YouTube video: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 
@@ -321,6 +371,33 @@ class DocumentProcessor {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
     const match = url.match(regExp);
     return match && match[7].length === 11 ? match[7] : null;
+  }
+
+  private formatTimestamp(offsetMs: number): string {
+    const totalSeconds = Math.floor(offsetMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    } else {
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+  }
+
+  private formatDuration(durationSeconds: number): string {
+    const hours = Math.floor(durationSeconds / 3600);
+    const minutes = Math.floor((durationSeconds % 3600) / 60);
+    const seconds = durationSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
   }
 }
 

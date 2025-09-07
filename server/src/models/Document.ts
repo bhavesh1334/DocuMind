@@ -98,7 +98,7 @@ const documentSchema = new Schema<IDocument>(
         if (ret.chunks) {
           ret.chunks = ret.chunks.map((chunk: any) => ({
             id: chunk.id,
-            content: chunk.content.substring(0, 200) + '...',
+            content: chunk.content ? chunk.content.substring(0, 200) + '...' : '',
             metadata: chunk.metadata
           }));
         }
