@@ -47,7 +47,15 @@ export const ChatInterface = () => {
   // Update messages when chat data changes
   useEffect(() => {
     if (currentChat?.messages) {
-      setMessages(currentChat.messages);
+      // Map server messages to display format, handling timestamp field
+      const mappedMessages = currentChat.messages.map((msg: any) => ({
+        _id: msg._id || `msg-${Date.now()}-${Math.random()}`,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.timestamp || msg.createdAt || new Date().toISOString(),
+        sources: msg.metadata?.sources,
+      }));
+      setMessages(mappedMessages);
     } else if (!currentChatId) {
       setMessages([welcomeMessage]);
     }
@@ -141,7 +149,19 @@ export const ChatInterface = () => {
   };
 
   const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!timestamp) return '';
+    
+    try {
+      const date = new Date(timestamp);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      console.warn('Invalid timestamp:', timestamp);
+      return '';
+    }
   };
 
   return (
