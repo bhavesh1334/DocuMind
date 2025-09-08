@@ -32,17 +32,18 @@ export function useDocuments(params?: {
 
 export function useDocument(id: string, userId?: string) {
   return useQuery({
-    queryKey: queryKeys.document(id),
+    queryKey: [...queryKeys.document(id), userId],
     queryFn: () => documentsApi.getDocument(id, userId),
-    enabled: !!id,
+    enabled: !!id && !!userId, // Require both id and userId
   });
 }
 
 export function useDocumentsSummary(userId?: string) {
   return useQuery({
-    queryKey: queryKeys.documentsSummary,
+    queryKey: [...queryKeys.documentsSummary, userId],
     queryFn: () => documentsApi.getSummary(userId),
     staleTime: 60000, // 1 minute
+    enabled: !!userId, // Only fetch when userId is provided
   });
 }
 
@@ -160,17 +161,17 @@ export function useChats(params?: {
 
 export function useChat(id: string, userId?: string) {
   return useQuery({
-    queryKey: queryKeys.chat(id),
+    queryKey: [...queryKeys.chat(id), userId],
     queryFn: () => chatApi.getChat(id, userId),
-    enabled: !!id,
+    enabled: !!id && !!userId, // Require both id and userId
   });
 }
 
 export function useChatHistory(id: string, userId?: string) {
   return useQuery({
-    queryKey: queryKeys.chatHistory(id),
+    queryKey: [...queryKeys.chatHistory(id), userId],
     queryFn: () => chatApi.getChatHistory(id, userId),
-    enabled: !!id,
+    enabled: !!id && !!userId, // Require both id and userId
   });
 }
 
@@ -329,21 +330,48 @@ export function useLoginWithUsername() {
   });
 }
 
+export function useGetUserData(userId?: string) {
+  return useQuery({
+    queryKey: [...queryKeys.users, 'data', userId],
+    queryFn: () => userApi.getUserData(userId!),
+    enabled: !!userId,
+    staleTime: 60000, // 1 minute
+  });
+}
+
 export function useDeleteUserData() {
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: ({ userId }: { userId: string }) => userApi.deleteUserData(userId),
-    onSuccess: () => {
+    onSuccess: (response, variables) => {
+      // Clear localStorage chat data for this user
+      localStorage.removeItem(`currentChatId_${variables.userId}`);
+      
+      // Trigger a custom event to notify components immediately
+      window.dispatchEvent(new CustomEvent('userDataDeleted', { 
+        detail: { userId: variables.userId } 
+      }));
+      
+      // Invalidate all queries since all user data is deleted
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users });
+      
+      // Clear all cached chat data
+      queryClient.removeQueries({ queryKey: queryKeys.chats });
+      
+      const data = response.data;
       toast({
-        title: "Data deleted",
-        description: "All your data has been successfully deleted.",
+        title: "Data Deleted",
+        description: `Deleted ${data?.deletedChats || 0} chats and ${data?.deletedDocuments || 0} documents`,
       });
     },
     onError: (error: ApiError) => {
       toast({
-        title: "Failed to delete data",
-        description: error.message || "Failed to delete your data. Please try again.",
+        title: "Error",
+        description: error.message || "Failed to delete data",
         variant: "destructive",
       });
     },

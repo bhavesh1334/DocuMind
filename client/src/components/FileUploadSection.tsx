@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { Upload, File, Link, Type, X, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, File, Link, Type, Trash2, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, CheckCircleIcon, CheckCheck, CheckCircle2, AlertTriangle, LoaderCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,27 +75,24 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
   const getStatusIcon = (status: Document['status']) => {
     switch (status) {
       case 'processing':
-        return <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />;
+        return <LoaderCircle className="h-4 w-4 animate-spin text-yellow-500" />;
       case 'completed':
-        return <CheckCircle className="h-3 w-3 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'failed':
-        return <AlertCircle className="h-3 w-3 text-red-500" />;
+        return <AlertTriangle className="h-4 w-4 text-red-500" />;
       default:
         return null;
     }
   };
 
   const getStatusBadge = (status: Document['status']) => {
-    const variants = {
-      processing: 'secondary',
-      completed: 'default',
-      failed: 'destructive',
-    } as const;
+    const icon = getStatusIcon(status);
+    if (!icon) return null;
     
     return (
-      <Badge variant={variants[status]} className="text-xs capitalize">
-        {status}
-      </Badge>
+      <div className="flex items-center gap-1" title={status}>
+        {icon}
+      </div>
     );
   };
 
@@ -207,11 +204,7 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
   };
 
   const handleDeleteDocument = (id: string) => {
-    deleteDocument.mutate(id, {
-      onSuccess: () => {
-        refetch();
-      },
-    });
+    deleteDocument.mutate({ id, userId: user.id });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -362,9 +355,14 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
               <h3 className="font-medium text-foreground">Documents ({documents.length})</h3>
               <div className="space-y-2">
                 {documents.map((document) => (
-                  <Card key={document.id || document._id} className="transition-all duration-200 hover:shadow-md">
+                  <Card key={document.id || document._id} className="transition-all duration-200 hover:shadow-md relative">
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
+                      {/* Status Icon - Top Right */}
+                      <div className="absolute top-4 right-4">
+                        {getStatusBadge(document.status)}
+                      </div>
+                      
+                      <div className="flex items-center justify-between pr-8">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className="flex-shrink-0 text-primary">
                             {getFileIcon(document)}
@@ -391,7 +389,6 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
                                   {document.metadata.originalName}
                                 </p>
                               )}
-                              {getStatusBadge(document.status)}
                             </div>
                           </div>
                         </div>
@@ -405,7 +402,7 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
                           {deleteDocument.isPending ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           )}
                         </Button>
                       </div>

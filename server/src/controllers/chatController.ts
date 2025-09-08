@@ -101,22 +101,28 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     // Validate document IDs - use all completed docs if none specified
     let targetDocumentIds = documentIds || chat.documentIds;
-    if (!targetDocumentIds || targetDocumentIds.length === 0) {
-      const allDocs = await Document.find({ userId, status: 'completed' }).select('_id');
-      targetDocumentIds = allDocs.map(doc => doc._id.toString());
-    }
-    if (targetDocumentIds.length > 0) {
-      const existingDocs = await Document.find({
-        _id: { $in: targetDocumentIds },
-        status: 'completed'
-      });
-      
-      if (existingDocs.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'No completed documents found for the provided IDs',
-        });
+    
+    // Always refresh document IDs to get current user's documents
+    const allUserDocs = await Document.find({ userId, status: 'completed' }).select('_id');
+    const allUserDocIds = allUserDocs.map(doc => doc._id.toString());
+    
+    if (!targetDocumentIds || targetDocumentIds.length === 0 || allUserDocIds.length === 0) {
+      targetDocumentIds = allUserDocIds;
+    } else {
+      // Filter target IDs to only include existing user documents
+      targetDocumentIds = targetDocumentIds.filter((id: string) => allUserDocIds.includes(id));
+      // If none of the target IDs exist, use all user docs
+      if (targetDocumentIds.length === 0) {
+        targetDocumentIds = allUserDocIds;
       }
+    }
+    
+    // Check if user has any completed documents at all
+    if (targetDocumentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No completed documents found. Please upload and process some documents first.',
+      });
     }
 
     // Get conversation history for context

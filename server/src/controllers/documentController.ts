@@ -51,14 +51,15 @@ export const uploadFiles = async (req: Request, res: Response) => {
 
       await document.save();
 
-      // Process file in background
-      processFileAsync(document._id, file.path, file.originalname, file.mimetype);
+      // Process file synchronously and wait for indexing
+      const processingResult = await processFileSync(document._id, file.path, file.originalname, file.mimetype);
       
       results.push({
         id: document._id,
         title: document.title,
-        status: 'processing',
+        status: processingResult.status,
         originalName: file.originalname,
+        error: processingResult.error,
       });
     } catch (error) {
       logger.error(`Error processing file ${file.originalname}:`, error);
@@ -115,18 +116,19 @@ export const addUrl = async (req: Request, res: Response) => {
 
     await document.save();
 
-    // Process URL in background
-    processUrlAsync(document._id, url, isYoutube);
+    // Process URL synchronously and wait for indexing
+    const processingResult = await processUrlSync(document._id, url, isYoutube);
 
     res.status(201).json({
       success: true,
-      message: `${documentType} added and processing started`,
+      message: `${documentType} ${processingResult.status === 'completed' ? 'processed successfully' : 'processing failed'}`,
       data: {
         id: document._id,
         title: document.title,
         type: documentType,
-        status: 'processing',
+        status: processingResult.status,
         url,
+        error: processingResult.error,
       },
     });
   } catch (error) {
@@ -168,17 +170,18 @@ export const addText = async (req: Request, res: Response) => {
 
     await document.save();
 
-    // Process text in background
-    processTextAsync(document._id, content, title);
+    // Process text synchronously and wait for indexing
+    const processingResult = await processTextSync(document._id, content, title);
 
     res.status(201).json({
       success: true,
-      message: 'Text added and processing started',
+      message: `Text ${processingResult.status === 'completed' ? 'processed successfully' : 'processing failed'}`,
       data: {
         id: document._id,
         title: document.title,
         type: 'text',
-        status: 'processing',
+        status: processingResult.status,
+        error: processingResult.error,
       },
     });
   } catch (error) {
@@ -253,13 +256,13 @@ export const deleteDocument = async (req: Request, res: Response) => {
   }
 };
 
-// Background processing functions
-async function processFileAsync(
+// Synchronous processing functions that wait for indexing completion
+async function processFileSync(
   documentId: string,
   filePath: string,
   originalName: string,
   mimeType: string
-) {
+): Promise<{ status: 'completed' | 'failed'; error?: string }> {
   try {
     const processed = await documentProcessor.processFile(filePath, originalName, mimeType);
     
@@ -272,7 +275,7 @@ async function processFileAsync(
       status: 'completed',
     });
 
-    // Add to vector database
+    // Add to vector database and wait for completion
     const chunksForVector = processed.chunks.map(chunk => ({
       id: chunk.id,
       content: chunk.content,
@@ -282,7 +285,7 @@ async function processFileAsync(
 
     await vectorService.addChunks(chunksForVector);
     
-    logger.info(`Successfully processed file: ${originalName}`);
+    logger.info(`Successfully processed and indexed file: ${originalName}`);
     
     // Clean up uploaded file
     try {
@@ -290,12 +293,15 @@ async function processFileAsync(
     } catch (unlinkError) {
       logger.error(`Failed to delete processed file ${filePath}:`, unlinkError);
     }
+
+    return { status: 'completed' };
   } catch (error) {
     logger.error(`Failed to process file ${originalName}:`, error);
     
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await Document.findByIdAndUpdate(documentId, {
       status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     });
     
     // Clean up file on error
@@ -304,10 +310,22 @@ async function processFileAsync(
     } catch (unlinkError) {
       logger.error(`Failed to delete failed file ${filePath}:`, unlinkError);
     }
+
+    return { status: 'failed', error: errorMessage };
   }
 }
 
-async function processUrlAsync(documentId: string, url: string, isYoutube: boolean) {
+// Keep async version for backward compatibility if needed
+async function processFileAsync(
+  documentId: string,
+  filePath: string,
+  originalName: string,
+  mimeType: string
+) {
+  await processFileSync(documentId, filePath, originalName, mimeType);
+}
+
+async function processUrlSync(documentId: string, url: string, isYoutube: boolean): Promise<{ status: 'completed' | 'failed'; error?: string }> {
   try {
     const processed = isYoutube 
       ? await documentProcessor.processYouTubeURL(url)
@@ -322,7 +340,7 @@ async function processUrlAsync(documentId: string, url: string, isYoutube: boole
       status: 'completed',
     });
 
-    // Add to vector database
+    // Add to vector database and wait for completion
     const chunksForVector = processed.chunks.map(chunk => ({
       id: chunk.id,
       content: chunk.content,
@@ -332,18 +350,27 @@ async function processUrlAsync(documentId: string, url: string, isYoutube: boole
 
     await vectorService.addChunks(chunksForVector);
     
-    logger.info(`Successfully processed ${isYoutube ? 'YouTube' : 'URL'}: ${url}`);
+    logger.info(`Successfully processed and indexed ${isYoutube ? 'YouTube' : 'URL'}: ${url}`);
+    return { status: 'completed' };
   } catch (error) {
     logger.error(`Failed to process ${isYoutube ? 'YouTube' : 'URL'} ${url}:`, error);
     
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await Document.findByIdAndUpdate(documentId, {
       status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     });
+
+    return { status: 'failed', error: errorMessage };
   }
 }
 
-async function processTextAsync(documentId: string, content: string, title: string) {
+// Keep async version for backward compatibility if needed
+async function processUrlAsync(documentId: string, url: string, isYoutube: boolean) {
+  await processUrlSync(documentId, url, isYoutube);
+}
+
+async function processTextSync(documentId: string, content: string, title: string): Promise<{ status: 'completed' | 'failed'; error?: string }> {
   try {
     const processed = await documentProcessor.processText(content, title);
     
@@ -356,7 +383,7 @@ async function processTextAsync(documentId: string, content: string, title: stri
       status: 'completed',
     });
 
-    // Add to vector database
+    // Add to vector database and wait for completion
     const chunksForVector = processed.chunks.map(chunk => ({
       id: chunk.id,
       content: chunk.content,
@@ -366,15 +393,24 @@ async function processTextAsync(documentId: string, content: string, title: stri
 
     await vectorService.addChunks(chunksForVector);
     
-    logger.info(`Successfully processed text: ${title}`);
+    logger.info(`Successfully processed and indexed text: ${title}`);
+    return { status: 'completed' };
   } catch (error) {
     logger.error(`Failed to process text ${title}:`, error);
     
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await Document.findByIdAndUpdate(documentId, {
       status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     });
+
+    return { status: 'failed', error: errorMessage };
   }
+}
+
+// Keep async version for backward compatibility if needed
+async function processTextAsync(documentId: string, content: string, title: string) {
+  await processTextSync(documentId, content, title);
 }
 
 // Get documents for a user (renamed to avoid duplicate)

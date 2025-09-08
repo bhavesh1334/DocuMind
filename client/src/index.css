@@ -183,3 +183,59 @@
     transition: var(--transition-bounce);
   }
 }
+/* Markdown wrapper and content styles */
+.markdown-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* Responsive code blocks */
+.markdown-wrapper pre {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}
+
+.markdown-wrapper code {
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .markdown-wrapper {
+    font-size: 0.8rem;
+  }
+  
+  .markdown-wrapper pre {
+    font-size: 0.75rem !important;
+    padding: 0.75rem !important;
+  }
+  
+  .markdown-wrapper .inline-code {
+    font-size: 0.75rem !important;
+    padding: 0.125rem 0.25rem !important;
+  }
+}
+
+/* Ensure tables are responsive */
+.markdown-wrapper table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .markdown-wrapper table {
+    font-size: 0.75rem;
+  }
+  
+  .markdown-wrapper th,
+  .markdown-wrapper td {
+    padding: 0.5rem !important;
+  }
+}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, Sparkles, Copy, Check } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useChatOperations, useChat } from '@/hooks/useApi';
 import { Chat, Message as ApiMessage } from '@/lib/api';
+import { MessageRenderer } from '@/components/MessageRenderer';
 
 interface DisplayMessage {
   _id: string;
@@ -36,12 +38,13 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // API hooks
-  const { data: currentChatResponse } = useChat(currentChatId || '');
+  const { data: currentChatResponse } = useChat(currentChatId || '', user.id);
   const { sendMessage, createChat, isSending } = useChatOperations();
 
   const currentChat = currentChatResponse?.data;
@@ -54,22 +57,76 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
     createdAt: new Date().toISOString(),
   };
 
+  // Restore currentChatId from localStorage on mount
+  useEffect(() => {
+    const savedChatId = localStorage.getItem(`currentChatId_${user.id}`);
+    if (savedChatId) {
+      setCurrentChatId(savedChatId);
+    }
+    setIsInitialized(true);
+  }, [user.id]);
+
+  // Listen for user data deletion to immediately reset chat state
+  useEffect(() => {
+    const handleUserDataDeleted = (e: CustomEvent) => {
+      if (e.detail?.userId === user.id) {
+        // User data was deleted, immediately reset chat state
+        setCurrentChatId(null);
+        setMessages([welcomeMessage]);
+      }
+    };
+
+    window.addEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+    return () => window.removeEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+  }, [user.id, welcomeMessage]);
+
+  // Save currentChatId to localStorage whenever it changes
+  useEffect(() => {
+    if (isInitialized) {
+      if (currentChatId) {
+        localStorage.setItem(`currentChatId_${user.id}`, currentChatId);
+      } else {
+        localStorage.removeItem(`currentChatId_${user.id}`);
+      }
+    }
+  }, [currentChatId, user.id, isInitialized]);
+
   // Update messages when chat data changes
   useEffect(() => {
+    if (!isInitialized) return; // Wait for initialization
+    
     if (currentChat?.messages) {
       // Map server messages to display format, handling timestamp field
-      const mappedMessages = currentChat.messages.map((msg: any) => ({
+      const serverMessages = currentChat.messages.map((msg: any) => ({
         _id: msg._id || `msg-${Date.now()}-${Math.random()}`,
         role: msg.role,
         content: msg.content,
         createdAt: msg.timestamp || msg.createdAt || new Date().toISOString(),
         sources: msg.metadata?.sources,
       }));
-      setMessages(mappedMessages);
+      
+      // Only update if we're not currently sending a message or if server has more messages
+      // This prevents overwriting optimistic updates
+      setMessages(prevMessages => {
+        // If we're sending and server messages are same or fewer, keep current messages
+        if (isSending && serverMessages.length <= prevMessages.length) {
+          return prevMessages;
+        }
+        
+        // If we have temporary messages (starting with 'temp-'), preserve them
+        const tempMessages = prevMessages.filter(msg => msg._id.startsWith('temp-'));
+        
+        // If we have temp messages and server messages don't include them yet, merge them
+        if (tempMessages.length > 0 && serverMessages.length < prevMessages.length) {
+          return [...serverMessages, ...tempMessages];
+        }
+        
+        return serverMessages;
+      });
     } else if (!currentChatId) {
       setMessages([welcomeMessage]);
     }
-  }, [currentChat?.messages, currentChatId]);
+  }, [currentChat?.messages, currentChatId, isInitialized, welcomeMessage, isSending]);
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -95,7 +152,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
     setMessages(prev => [...prev, userMessage]);
 
     sendMessage(
-      { message: messageText, chatId: currentChatId || undefined },
+      { message: messageText, userId: user.id, chatId: currentChatId || undefined },
       {
         onSuccess: (response) => {
           // If a new chat was created, set it as current
@@ -103,27 +160,6 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
             setCurrentChatId(response.data.chatId);
           }
           
-          // Add the AI response immediately to the UI
-          if (response.data?.assistantMessage) {
-            const aiMessage: DisplayMessage = {
-              _id: `ai-${Date.now()}`,
-              role: 'assistant',
-              content: response.data.assistantMessage.content,
-              createdAt: response.data.assistantMessage.timestamp || new Date().toISOString(),
-              sources: response.data.assistantMessage.metadata?.sources,
-            };
-            
-            setMessages(prev => {
-              // Replace the temporary user message with the final user message and add AI response
-              const withoutTemp = prev.filter(msg => msg._id !== userMessage._id);
-              const finalUserMessage = {
-                ...userMessage,
-                _id: `user-${Date.now()}`,
-                createdAt: response.data.userMessage?.timestamp || userMessage.createdAt,
-              };
-              return [...withoutTemp, finalUserMessage, aiMessage];
-            });
-          }
         },
         onError: () => {
           // Remove the temporary user message on error
@@ -184,7 +220,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
           </div>
           <div>
             <h2 className="text-xl font-semibold text-foreground">
-              AI Assistant
+              Chat
             </h2>
             <p className="text-sm text-muted-foreground">
               Ask questions about your documents
@@ -230,9 +266,12 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                          {message.content}
-                        </p>
+                        <MessageRenderer
+                          content={message.content}
+                          role={message.role}
+                          onCopy={() => copyMessage(message._id, message.content)}
+                          isCopied={copiedMessageId === message._id}
+                        />
                         
                         {/* Sources */}
                         {message.sources && message.sources.length > 0 && (
@@ -276,21 +315,44 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
             </div>
           ))}
 
-          {/* Loading Indicator */}
+          {/* Enhanced Loading Indicator */}
           {isSending && (
-            <div className="flex gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+            <motion.div 
+              className="flex gap-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
                 <Bot className="h-4 w-4" />
               </div>
               <Card className="bg-chat-bubble-ai text-chat-bubble-ai-foreground mr-8">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <p className="text-sm">AI is thinking...</p>
+                  <div className="flex items-center gap-3">
+                    {/* Animated dots */}
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map((i) => (
+                        <motion.div
+                          key={i}
+                          className="w-2 h-2 bg-current rounded-full opacity-60"
+                          animate={{
+                            scale: [1, 1.2, 1],
+                            opacity: [0.6, 1, 0.6],
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            delay: i * 0.2,
+                            ease: "easeInOut",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </motion.div>
           )}
         </div>
       </ScrollArea>

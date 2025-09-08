@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
 import { useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { useDeleteUserData } from '@/hooks/useApi';
 import ThemeToggle from './ThemeToggle';
 
 interface User {
@@ -35,8 +35,7 @@ interface HeaderProps {
 }
 
 export const Header = ({ user, onLogout }: HeaderProps) => {
-  const [isDeleting, setIsDeleting] = useState(false);
-  const { toast } = useToast();
+  const deleteUserDataMutation = useDeleteUserData();
 
   const getInitials = (name: string) => {
     return name
@@ -47,38 +46,8 @@ export const Header = ({ user, onLogout }: HeaderProps) => {
       .slice(0, 2);
   };
 
-  const handleDeleteAllData = async () => {
-    setIsDeleting(true);
-    
-    try {
-      const response = await fetch(`/api/users/${user.id}/data`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast({
-          title: "Data Deleted",
-          description: `Deleted ${data.data.deletedChats} chats and ${data.data.deletedDocuments} documents`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: data.message || "Failed to delete data",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete data",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+  const handleDeleteAllData = () => {
+    deleteUserDataMutation.mutate({ userId: user.id });
   };
 
   return (
@@ -147,10 +116,10 @@ export const Header = ({ user, onLogout }: HeaderProps) => {
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDeleteAllData}
-                      disabled={isDeleting}
+                      disabled={deleteUserDataMutation.isPending}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      {isDeleting ? "Deleting..." : "Delete All Data"}
+                      {deleteUserDataMutation.isPending ? "Deleting..." : "Delete All Data"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

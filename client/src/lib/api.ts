@@ -16,7 +16,7 @@ export interface DocumentChunk {
 export interface Document {
   id: string;
   title: string;
-  type: 'file' | 'url' | 'text';
+  type: 'file' | 'url' | 'text' | 'youtube';
   source?: string;
   status: 'processing' | 'completed' | 'failed';
   summary?: string;
@@ -28,9 +28,11 @@ export interface Document {
     size?: number;
     pages?: number;
     wordCount?: number;
+    url?: string;
   };
   createdAt: string;
   updatedAt: string;
+  error?: string; // Added to handle processing errors
   // Legacy field for backward compatibility
   _id?: string;
   content?: string;
@@ -342,8 +344,30 @@ class ApiClient {
     });
   }
 
-  async deleteUserData(userId: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/users/${userId}/data`, {
+  async getUserData(userId: string): Promise<ApiResponse<{
+    user: User;
+    stats: {
+      totalChats: number;
+      totalDocuments: number;
+    };
+  }>> {
+    return this.request<{
+      user: User;
+      stats: {
+        totalChats: number;
+        totalDocuments: number;
+      };
+    }>(`/users/${userId}`);
+  }
+
+  async deleteUserData(userId: string): Promise<ApiResponse<{
+    deletedChats: number;
+    deletedDocuments: number;
+  }>> {
+    return this.request<{
+      deletedChats: number;
+      deletedDocuments: number;
+    }>(`/users/${userId}/data`, {
       method: 'DELETE',
     });
   }
@@ -379,5 +403,6 @@ export const chatApi = {
 export const userApi = {
   createOrLogin: (name: string) => apiClient.createOrLoginUser(name),
   loginWithUsername: (username: string) => apiClient.loginWithUsername(username),
+  getUserData: (userId: string) => apiClient.getUserData(userId),
   deleteUserData: (userId: string) => apiClient.deleteUserData(userId),
 };
