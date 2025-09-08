@@ -39,8 +39,11 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   // API hooks
@@ -91,6 +94,44 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
     }
   }, [currentChatId, user.id, isInitialized]);
 
+  // Check if user is near bottom of scroll area
+  const isNearBottom = () => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+        return scrollHeight - scrollTop - clientHeight < 100; // Within 100px of bottom
+      }
+    }
+    return true;
+  };
+
+  // Scroll to bottom helper function
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current && shouldAutoScroll) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  };
+
+  // Handle scroll events to detect user scrolling
+  const handleScroll = () => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    setIsUserScrolling(true);
+    setShouldAutoScroll(isNearBottom());
+
+    // Reset user scrolling state after scroll stops
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsUserScrolling(false);
+      setShouldAutoScroll(isNearBottom());
+    }, 150);
+  };
+
   // Update messages when chat data changes
   useEffect(() => {
     if (!isInitialized) return; // Wait for initialization
@@ -128,12 +169,42 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
     }
   }, [currentChat?.messages, currentChatId, isInitialized, welcomeMessage, isSending]);
 
-  // Auto-scroll to bottom when new messages are added
+  // Auto-scroll to bottom when messages change or on initial load
+  useEffect(() => {
+    if (messages.length > 0 && !isUserScrolling) {
+      // Use setTimeout to ensure DOM has updated
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [messages, isUserScrolling]);
+
+  // Auto-scroll when loading state changes (for smooth UX during message sending)
+  useEffect(() => {
+    if (isSending) {
+      setShouldAutoScroll(true); // Always auto-scroll when sending a message
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [isSending]);
+
+  // Set up scroll event listener
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleScroll);
+        return () => scrollContainer.removeEventListener('scroll', handleScroll);
+      }
     }
-  }, [messages]);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isSending) return;
@@ -232,7 +303,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       {/* Messages */}
       <ScrollArea className="flex-1 p-6" ref={scrollAreaRef}>
         <div className="space-y-6 max-w-4xl mx-auto">
-          {messages.map((message) => (
+            {messages.map((message) => (
             <div
               key={message._id}
               className={`flex gap-4 ${
@@ -274,7 +345,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
                         />
                         
                         {/* Sources */}
-                        {message.sources && message.sources.length > 0 && (
+                        {/* {message.sources && message.sources.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-1">
                             {message.sources.map((source, index) => (
                               <Badge
@@ -287,27 +358,13 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
                               </Badge>
                             ))}
                           </div>
-                        )}
+                        )} */}
 
                         {/* Timestamp */}
                         <p className="text-xs opacity-60 mt-2">
                           {formatTimestamp(message.createdAt)}
                         </p>
                       </div>
-
-                      {/* Copy Button */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyMessage(message._id, message.content)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-8 w-8 p-0"
-                      >
-                        {copiedMessageId === message._id ? (
-                          <Check className="h-3 w-3" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>

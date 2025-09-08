@@ -24,7 +24,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 
   if (role === 'user') {
     return (
-      <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-gray-800 dark:text-gray-200 max-w-none">
+      <div className="text-sm leading-relaxed whitespace-pre-wrap break-words max-w-none">
         {content}
       </div>
     );
@@ -62,15 +62,6 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
                   >
                     {String(children).replace(/\n$/, '')}
                   </SyntaxHighlighter>
-                  {onCopy && (
-                    <button
-                      onClick={onCopy}
-                      className="absolute top-2 right-2 p-1 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs opacity-70 hover:opacity-100 transition-opacity z-10"
-                      title="Copy code"
-                    >
-                      {isCopied ? '✓' : '📋'}
-                    </button>
-                  )}
                 </div>
               );
             }
