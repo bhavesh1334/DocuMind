@@ -98,7 +98,7 @@ export const Header = ({ user, onLogout }: HeaderProps) => {
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem 
-                    className="cursor-pointer text-destructive focus:text-destructive"
+                    className="cursor-pointer"
                     onSelect={(e) => e.preventDefault()}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -126,7 +126,7 @@ export const Header = ({ user, onLogout }: HeaderProps) => {
               </AlertDialog>
 
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-destructive" onClick={onLogout}>
+              <DropdownMenuItem className="cursor-pointer" onClick={onLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
               </DropdownMenuItem>

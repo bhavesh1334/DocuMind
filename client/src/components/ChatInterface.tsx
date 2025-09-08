@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useChatOperations, useChat } from '@/hooks/useApi';
+import { useChatOperations, useChat, useDocuments } from '@/hooks/useApi';
 import { Chat, Message as ApiMessage } from '@/lib/api';
 import { MessageRenderer } from '@/components/MessageRenderer';
 
@@ -49,14 +49,21 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   // API hooks
   const { data: currentChatResponse } = useChat(currentChatId || '', user.id);
   const { sendMessage, createChat, isSending } = useChatOperations();
+  const { data: documentsResponse } = useDocuments({ limit: 50, userId: user.id });
 
   const currentChat = currentChatResponse?.data;
+  
+  // Check if user has any completed documents
+  const documents = documentsResponse?.data?.documents || [];
+  const hasCompletedDocuments = documents.some(doc => doc.status === 'completed');
 
   // Welcome message when no chat is selected
   const welcomeMessage: DisplayMessage = {
     _id: 'welcome',
     role: 'assistant',
-    content: "👋 Hello! I'm your AI assistant. Upload some documents on the left, and I'll help you analyze, summarize, or answer questions about your content. What would you like to explore today?",
+    content: hasCompletedDocuments 
+      ? "👋 Hello! I'm your AI assistant. Upload some documents on the left, and I'll help you analyze, summarize, or answer questions about your content. What would you like to explore today?"
+      : "👋 Hello! I'm your AI assistant. Please upload some documents, add URLs, or paste text content on the left panel first. Once you have documents available, I'll be able to help you analyze, summarize, or answer questions about your content.",
     createdAt: new Date().toISOString(),
   };
 
@@ -207,7 +214,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
 
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isSending) return;
+    if (!inputValue.trim() || isSending || !hasCompletedDocuments) return;
 
     const messageText = inputValue;
     setInputValue('');
@@ -302,7 +309,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-6" ref={scrollAreaRef}>
-        <div className="space-y-6 max-w-4xl mx-auto">
+        <div className="space-y-6 max-w-7xl mx-auto">
             {messages.map((message) => (
             <div
               key={message._id}
@@ -416,7 +423,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
 
       {/* Input Area */}
       <div className="p-6 border-t border-border bg-card">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="flex gap-3">
             <div className="flex-1 relative">
               <Input
@@ -424,14 +431,14 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me anything about your documents..."
+                placeholder={hasCompletedDocuments ? "Ask me anything about your documents..." : "Please add documents first to start chatting..."}
                 className="pr-12 h-12 transition-smooth"
-                disabled={isSending}
+                disabled={isSending || !hasCompletedDocuments}
               />
             </div>
             <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isSending}
+              disabled={!inputValue.trim() || isSending || !hasCompletedDocuments}
               className="h-12 px-6 gap-2 transition-smooth"
             >
               {isSending ? (
