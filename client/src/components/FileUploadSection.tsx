@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
+import { useDropzone } from 'react-dropzone';
 import { Upload, File, Link, Type, Trash2, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, CheckCircleIcon, CheckCheck, CheckCircle2, AlertTriangle, LoaderCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,11 +20,6 @@ const SUPPORTED_FILE_TYPES = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'csv',
   'text/plain': 'txt',
   'text/markdown': 'md',
-  'image/jpeg': 'image',
-  'image/jpg': 'image',
-  'image/png': 'image',
-  'image/gif': 'image',
-  'image/webp': 'image',
 } as const;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -37,12 +33,12 @@ interface User {
 
 interface FileUploadSectionProps {
   user: User;
+  hideHeader?: boolean;
 }
 
-export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
+export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectionProps) => {
   const [urlInput, setUrlInput] = useState('');
   const [textInput, setTextInput] = useState('');
-  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -207,141 +203,184 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
     deleteDocument.mutate({ id, userId: user.id });
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    handleFileUpload(e.dataTransfer.files);
-  };
+  // ReactDropzone configuration
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+    isDragReject,
+    fileRejections
+  } = useDropzone({
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'text/csv': ['.csv'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'text/plain': ['.txt'],
+      'text/markdown': ['.md'],
+    },
+    maxFiles: MAX_FILES,
+    maxSize: MAX_FILE_SIZE,
+    disabled: isUploading,
+    onDrop: (acceptedFiles, rejectedFiles) => {
+      if (rejectedFiles.length > 0) {
+        const errors = rejectedFiles.map(rejection => {
+          const errorMessages = rejection.errors.map(error => {
+            switch (error.code) {
+              case 'file-too-large':
+                return `File "${rejection.file.name}" is too large. Maximum size is 10MB.`;
+              case 'file-invalid-type':
+                return `File "${rejection.file.name}" has unsupported format. Supported formats: PDF, DOC, DOCX, CSV, TXT, MD, and images.`;
+              case 'too-many-files':
+                return `Too many files selected. Maximum is ${MAX_FILES} files.`;
+              default:
+                return `File "${rejection.file.name}" was rejected: ${error.message}`;
+            }
+          });
+          return errorMessages.join(' ');
+        });
+        
+        toast({
+          title: "Upload failed",
+          description: errors[0],
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (acceptedFiles.length > 0) {
+        const fileList = new DataTransfer();
+        acceptedFiles.forEach(file => fileList.items.add(file));
+        handleFileUpload(fileList.files);
+      }
+    }
+  });
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-6 border-b border-border bg-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Document Library</h2>
-            <p className="text-sm text-muted-foreground">
-              Upload files, add URLs, or paste text to chat with your content
-            </p>
+      {/* Header - Only show on desktop */}
+      {!hideHeader && (
+        <div className="p-4 sm:p-6 border-b border-border bg-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground mb-1 sm:mb-2">Document Library</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Upload files, add URLs, or paste text to chat with your content
+              </p>
+            </div>
+            {isLoadingDocuments && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
           </div>
-          {isLoadingDocuments && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          )}
         </div>
-      </div>
+      )}
 
       {/* Upload Section */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6 space-y-6">
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           <Tabs defaultValue="upload" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="upload" className="gap-2">
-                <Upload className="h-4 w-4" />
-                Files
+            <TabsList className="grid w-full grid-cols-3 h-9 sm:h-10">
+              <TabsTrigger value="upload" className="gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Files</span>
               </TabsTrigger>
-              <TabsTrigger value="url" className="gap-2">
-                <Link className="h-4 w-4" />
-                URL
+              <TabsTrigger value="url" className="gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Link className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">URL</span>
               </TabsTrigger>
-              <TabsTrigger value="text" className="gap-2">
-                <Type className="h-4 w-4" />
-                Text
+              <TabsTrigger value="text" className="gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Type className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Text</span>
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="upload" className="mt-6">
-              <Card 
-                className={`border-2 border-dashed transition-all duration-200 ${
-                  isDragOver 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-border hover:border-primary/50'
-                }`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <CardContent className="p-8 text-center">
-                  <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-lg font-medium text-foreground mb-2">
-                    Drop files here or click to upload
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Supports PDF, DOC, CSV, and image files
-                  </p>
-                  <Button 
-                    onClick={() => fileInputRef.current?.click()}
-                    variant="outline"
-                    className="gap-2"
-                    disabled={isUploading}
-                  >
-                    {isUploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    {isUploading ? 'Uploading...' : 'Choose Files'}
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.csv,.xlsx,.txt,.md,.png,.jpg,.jpeg,.gif,.webp"
-                    onChange={(e) => handleFileUpload(e.target.files)}
-                  />
-                </CardContent>
-              </Card>
+            <TabsContent value="upload" className="mt-4 sm:mt-6">
+              <div {...getRootProps()}>
+                <input {...getInputProps()} />
+                <Card 
+                  className={`border-2 border-dashed transition-all duration-200 cursor-pointer ${
+                    isDragActive && !isDragReject
+                      ? 'border-primary bg-primary/5' 
+                      : isDragReject
+                      ? 'border-destructive bg-destructive/5'
+                      : 'border-border hover:border-primary/50'
+                  } ${isUploading ? 'cursor-not-allowed opacity-50' : ''}`}
+                >
+                  <CardContent className="p-4 sm:p-8 text-center">
+                    <Upload className={`h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-2 sm:mb-4 ${
+                      isDragActive ? 'animate-bounce' : ''
+                    }`} />
+                    <p className="text-sm sm:text-lg font-medium text-foreground mb-1 sm:mb-2">
+                      {isDragActive 
+                        ? isDragReject 
+                          ? 'Some files are not supported'
+                          : 'Drop files here'
+                        : 'Drop files here or click to upload'
+                      }
+                    </p>
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
+                      Supports PDF, DOC, CSV, and image files (max 10MB each)
+                    </p>
+                    <Button 
+                      variant="outline"
+                      className="gap-1 sm:gap-2 text-xs sm:text-sm h-8 sm:h-10"
+                      disabled={isUploading}
+                      type="button"
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
+                      )}
+                      {isUploading ? 'Uploading...' : 'Choose Files'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
-            <TabsContent value="url" className="mt-6">
-              <div className="space-y-4">
+            <TabsContent value="url" className="mt-4 sm:mt-6">
+              <div className="space-y-3 sm:space-y-4">
                 <Input
                   placeholder="https://example.com/document"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
-                  className="transition-smooth"
+                  className="transition-smooth h-9 sm:h-10 text-sm sm:text-base"
                 />
                 <Button 
                   onClick={handleUrlAdd}
-                  className="w-full gap-2"
+                  className="w-full gap-1 sm:gap-2 h-9 sm:h-10 text-sm sm:text-base"
                   disabled={!urlInput.trim() || isUploading}
                 >
                   {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   ) : (
-                    <Link className="h-4 w-4" />
+                    <Link className="h-3 w-3 sm:h-4 sm:w-4" />
                   )}
                   {isUploading ? 'Adding...' : 'Add URL'}
                 </Button>
               </div>
             </TabsContent>
 
-            <TabsContent value="text" className="mt-6">
-              <div className="space-y-4">
+            <TabsContent value="text" className="mt-4 sm:mt-6">
+              <div className="space-y-3 sm:space-y-4">
                 <Textarea
                   placeholder="Paste your text content here..."
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  className="min-h-32 transition-smooth resize-none"
+                  className="min-h-24 sm:min-h-32 transition-smooth resize-none text-sm sm:text-base"
                 />
                 <Button 
                   onClick={handleTextAdd}
-                  className="w-full gap-2"
+                  className="w-full gap-1 sm:gap-2 h-9 sm:h-10 text-sm sm:text-base"
                   disabled={!textInput.trim() || isUploading}
                 >
                   {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   ) : (
-                    <Type className="h-4 w-4" />
+                    <Type className="h-3 w-3 sm:h-4 sm:w-4" />
                   )}
                   {isUploading ? 'Adding...' : 'Add Text'}
                 </Button>
@@ -351,25 +390,25 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
 
           {/* Documents List */}
           {documents.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-foreground">Documents ({documents.length})</h3>
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-sm sm:text-base font-medium text-foreground">Documents ({documents.length})</h3>
               <div className="space-y-2">
                 {documents.map((document) => (
-                  <Card key={document.id || document._id} className="transition-all duration-200 hover:shadow-md relative">
-                    <CardContent className="p-4">
+                  <Card key={document.id || document._id} className="group transition-all duration-200 hover:shadow-md relative">
+                    <CardContent className="p-3 sm:p-4">
                       {/* Status Icon - Top Right */}
-                      <div className="absolute top-4 right-4">
+                      {/* <div className="absolute top-3 sm:top-4 right-3 sm:right-4">
                         {getStatusBadge(document.status)}
-                      </div>
+                      </div> */}
                       
-                      <div className="flex items-center justify-between pr-8">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center justify-between ">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                           <div className="flex-shrink-0 text-primary">
                             {getFileIcon(document)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-foreground truncate">
+                              <p className="text-xs sm:text-sm font-medium text-foreground truncate">
                                 {document.title}
                               </p>
                             </div>
@@ -392,17 +431,19 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
                             </div>
                           </div>
                         </div>
+
+                   
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteDocument(document.id || document._id!)}
                           disabled={deleteDocument.isPending}
-                          className="flex-shrink-0 h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                          className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 p-0 hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         >
                           {deleteDocument.isPending ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                           )}
                         </Button>
                       </div>
@@ -415,9 +456,9 @@ export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
           
           {/* Empty State */}
           {!isLoadingDocuments && documents.length === 0 && (
-            <div className="text-center py-8">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-sm text-muted-foreground">
+            <div className="text-center py-6 sm:py-8">
+              <FileText className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+              <p className="text-xs sm:text-sm text-muted-foreground px-4">
                 No documents yet. Upload files, add URLs, or paste text to get started.
               </p>
             </div>

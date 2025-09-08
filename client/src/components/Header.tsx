@@ -1,4 +1,4 @@
-import { Sparkles, User, LogOut, Trash2 } from 'lucide-react';
+import { Sparkles, User, LogOut, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   DropdownMenu, 
@@ -32,9 +32,11 @@ interface User {
 interface HeaderProps {
   user: User;
   onLogout: () => void;
+  onToggleUpload?: () => void;
+  showUploadButton?: boolean;
 }
 
-export const Header = ({ user, onLogout }: HeaderProps) => {
+export const Header = ({ user, onLogout, onToggleUpload, showUploadButton = true }: HeaderProps) => {
   const deleteUserDataMutation = useDeleteUserData();
 
   const getInitials = (name: string) => {
@@ -52,21 +54,34 @@ export const Header = ({ user, onLogout }: HeaderProps) => {
 
   return (
     <header className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="h-full px-6 flex items-center justify-between">
+      <div className="h-full px-4 sm:px-6 flex items-center justify-between">
         {/* Logo & Title */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary text-primary-foreground shadow-elegant">
-            <Sparkles className="h-5 w-5 text-white" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary text-primary-foreground shadow-elegant">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              DocuMind
+            <h1 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
+              <span className="">DocuMind</span>
             </h1>
           </div>
         </div>
 
         {/* User Section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* Mobile Upload Toggle Button */}
+          {showUploadButton && onToggleUpload && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleUpload}
+              className="md:hidden h-8 w-8 p-0"
+              title="Toggle Document Upload"
+            >
+              <Upload className="h-4 w-4" />
+            </Button>
+          )}
+          
           <ThemeToggle />
           
           <DropdownMenu>

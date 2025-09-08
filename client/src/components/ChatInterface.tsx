@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { Send, Bot, User, Loader2, Sparkles, Copy, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,7 +33,7 @@ interface ChatInterfaceProps {
   user: User;
 }
 
-export const ChatInterface = ({ user }: ChatInterfaceProps) => {
+export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
   const [inputValue, setInputValue] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -57,17 +57,17 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   const documents = documentsResponse?.data?.documents || [];
   const hasCompletedDocuments = documents.some(doc => doc.status === 'completed');
 
-  // Welcome message when no chat is selected
-  const welcomeMessage: DisplayMessage = {
+  // Welcome message when no chat is selected - memoized to prevent recreation
+  const welcomeMessage: DisplayMessage = useMemo(() => ({
     _id: 'welcome',
     role: 'assistant',
     content: hasCompletedDocuments 
       ? "👋 Hello! I'm your AI assistant. Upload some documents on the left, and I'll help you analyze, summarize, or answer questions about your content. What would you like to explore today?"
       : "👋 Hello! I'm your AI assistant. Please upload some documents, add URLs, or paste text content on the left panel first. Once you have documents available, I'll be able to help you analyze, summarize, or answer questions about your content.",
     createdAt: new Date().toISOString(),
-  };
+  }), [hasCompletedDocuments]);
 
-  // Restore currentChatId from localStorage on mount
+  // Restore currentChatId from localStorage on mount - add user.id dependency
   useEffect(() => {
     const savedChatId = localStorage.getItem(`currentChatId_${user.id}`);
     if (savedChatId) {
@@ -76,21 +76,21 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
     setIsInitialized(true);
   }, [user.id]);
 
-  // Listen for user data deletion to immediately reset chat state
-  useEffect(() => {
-    const handleUserDataDeleted = (e: CustomEvent) => {
-      if (e.detail?.userId === user.id) {
-        // User data was deleted, immediately reset chat state
-        setCurrentChatId(null);
-        setMessages([welcomeMessage]);
-      }
-    };
-
-    window.addEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
-    return () => window.removeEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+  // Listen for user data deletion to immediately reset chat state - memoized handler
+  const handleUserDataDeleted = useCallback((e: CustomEvent) => {
+    if (e.detail?.userId === user.id) {
+      // User data was deleted, immediately reset chat state
+      setCurrentChatId(null);
+      setMessages([welcomeMessage]);
+    }
   }, [user.id, welcomeMessage]);
 
-  // Save currentChatId to localStorage whenever it changes
+  useEffect(() => {
+    window.addEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+    return () => window.removeEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+  }, [handleUserDataDeleted]);
+
+  // Save currentChatId to localStorage whenever it changes - optimized with user.id dependency
   useEffect(() => {
     if (isInitialized) {
       if (currentChatId) {
@@ -99,10 +99,10 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
         localStorage.removeItem(`currentChatId_${user.id}`);
       }
     }
-  }, [currentChatId, user.id, isInitialized]);
+  }, [currentChatId, isInitialized, user.id]);
 
-  // Check if user is near bottom of scroll area
-  const isNearBottom = () => {
+  // Check if user is near bottom of scroll area - memoized to prevent recreation
+  const isNearBottom = useCallback(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
@@ -111,20 +111,20 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       }
     }
     return true;
-  };
+  }, []);
 
-  // Scroll to bottom helper function
-  const scrollToBottom = () => {
+  // Scroll to bottom helper function - memoized to prevent recreation
+  const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current && shouldAutoScroll) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
       }
     }
-  };
+  }, [shouldAutoScroll]);
 
-  // Handle scroll events to detect user scrolling
-  const handleScroll = () => {
+  // Handle scroll events to detect user scrolling - memoized to prevent recreation
+  const handleScroll = useCallback(() => {
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
@@ -137,7 +137,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       setIsUserScrolling(false);
       setShouldAutoScroll(isNearBottom());
     }, 150);
-  };
+  }, [isNearBottom]);
 
   // Update messages when chat data changes
   useEffect(() => {
@@ -176,23 +176,23 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
     }
   }, [currentChat?.messages, currentChatId, isInitialized, welcomeMessage, isSending]);
 
-  // Auto-scroll to bottom when messages change or on initial load
+  // Auto-scroll to bottom when messages change or on initial load - optimized with scrollToBottom dependency
   useEffect(() => {
     if (messages.length > 0 && !isUserScrolling) {
       // Use setTimeout to ensure DOM has updated
       setTimeout(scrollToBottom, 100);
     }
-  }, [messages, isUserScrolling]);
+  }, [messages, isUserScrolling, scrollToBottom]);
 
-  // Auto-scroll when loading state changes (for smooth UX during message sending)
+  // Auto-scroll when loading state changes (for smooth UX during message sending) - optimized with scrollToBottom dependency
   useEffect(() => {
     if (isSending) {
       setShouldAutoScroll(true); // Always auto-scroll when sending a message
       setTimeout(scrollToBottom, 100);
     }
-  }, [isSending]);
+  }, [isSending, scrollToBottom]);
 
-  // Set up scroll event listener
+  // Set up scroll event listener - add handleScroll dependency
   useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -201,7 +201,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
         return () => scrollContainer.removeEventListener('scroll', handleScroll);
       }
     }
-  }, []);
+  }, [handleScroll]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -213,7 +213,7 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   }, []);
 
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isSending || !hasCompletedDocuments) return;
 
     const messageText = inputValue;
@@ -245,16 +245,16 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
         }
       }
     );
-  };
+  }, [inputValue, isSending, hasCompletedDocuments, sendMessage, user.id, currentChatId]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
-  const copyMessage = async (messageId: string, content: string) => {
+  const copyMessage = useCallback(async (messageId: string, content: string) => {
     try {
       await navigator.clipboard.writeText(content);
       setCopiedMessageId(messageId);
@@ -270,9 +270,9 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
         variant: "destructive",
       });
     }
-  };
+  }, []);
 
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = useCallback((timestamp: string) => {
     if (!timestamp) return '';
     
     try {
@@ -286,21 +286,21 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       console.warn('Invalid timestamp:', timestamp);
       return '';
     }
-  };
+  }, []);
 
   return (
     <div className="h-full flex flex-col bg-gradient-surface">
       {/* Chat Header */}
-      <div className="p-6 border-b border-border bg-card shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-            <Sparkles className="h-5 w-5 text-primary" />
+      <div className="p-4 sm:p-6 border-b border-border bg-card shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-foreground">
+            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
               Chat
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Ask questions about your documents
             </p>
           </div>
@@ -308,75 +308,16 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-6" ref={scrollAreaRef}>
-        <div className="space-y-6 max-w-7xl mx-auto">
+      <ScrollArea className="flex-1 p-3 sm:p-6" ref={scrollAreaRef}>
+        <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto">
             {messages.map((message) => (
-            <div
+            <MessageItem
               key={message._id}
-              className={`flex gap-4 ${
-                message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-              }`}
-            >
-              {/* Avatar */}
-              <div
-                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {message.role === 'user' ? (
-                  <User className="h-4 w-4" />
-                ) : (
-                  <Bot className="h-4 w-4" />
-                )}
-              </div>
-
-              {/* Message Content */}
-              <div className={`flex-1 max-w-3xl ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
-                <Card
-                  className={`${
-                    message.role === 'user'
-                      ? 'bg-chat-bubble-user text-chat-bubble-user-foreground ml-8'
-                      : 'bg-chat-bubble-ai text-chat-bubble-ai-foreground mr-8'
-                  } transition-all duration-200 hover:shadow-md group`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <MessageRenderer
-                          content={message.content}
-                          role={message.role}
-                          onCopy={() => copyMessage(message._id, message.content)}
-                          isCopied={copiedMessageId === message._id}
-                        />
-                        
-                        {/* Sources */}
-                        {/* {message.sources && message.sources.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-1">
-                            {message.sources.map((source, index) => (
-                              <Badge
-                                key={index}
-                                variant="secondary"
-                                className="text-xs px-2 py-1"
-                                title={`Relevance: ${(source.relevanceScore * 100).toFixed(1)}%`}
-                              >
-                                {source.title}
-                              </Badge>
-                            ))}
-                          </div>
-                        )} */}
-
-                        {/* Timestamp */}
-                        <p className="text-xs opacity-60 mt-2">
-                          {formatTimestamp(message.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+              message={message}
+              onCopy={copyMessage}
+              isCopied={copiedMessageId === message._id}
+              formatTimestamp={formatTimestamp}
+            />
           ))}
 
           {/* Enhanced Loading Indicator */}
@@ -387,11 +328,11 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
-                <Bot className="h-4 w-4" />
+               <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+                <Bot className="h-3 w-3 sm:h-4 sm:w-4" />
               </div>
-              <Card className="bg-chat-bubble-ai text-chat-bubble-ai-foreground mr-8">
-                <CardContent className="p-4">
+              <Card className="bg-chat-bubble-ai text-chat-bubble-ai-foreground mr-4 sm:mr-8">
+                <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-3">
                     {/* Animated dots */}
                     <div className="flex gap-1">
@@ -422,9 +363,9 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="p-6 border-t border-border bg-card">
+      <div className="p-3 sm:p-6 border-t border-border bg-card">
         <div className="max-w-7xl mx-auto">
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <div className="flex-1 relative">
               <Input
                 ref={inputRef}
@@ -432,25 +373,109 @@ export const ChatInterface = ({ user }: ChatInterfaceProps) => {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={hasCompletedDocuments ? "Ask me anything about your documents..." : "Please add documents first to start chatting..."}
-                className="pr-12 h-12 transition-smooth"
+                className="pr-12 h-10 sm:h-12 text-sm sm:text-base transition-smooth"
                 disabled={isSending || !hasCompletedDocuments}
               />
             </div>
             <Button
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isSending || !hasCompletedDocuments}
-              className="h-12 px-6 gap-2 transition-smooth"
+              className="h-10 sm:h-12 px-3 sm:px-6 gap-1 sm:gap-2 transition-smooth"
             >
               {isSending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Send
+              <span className="hidden sm:inline">Send</span>
             </Button>
           </div>
         </div>
       </div>
     </div>
   );
-};
+});
+
+// Memoized message item component to prevent unnecessary re-renders
+const MessageItem = memo(({ message, onCopy, isCopied, formatTimestamp }: {
+  message: DisplayMessage;
+  onCopy: (messageId: string, content: string) => void;
+  isCopied: boolean;
+  formatTimestamp: (timestamp: string) => string;
+}) => {
+  const handleCopy = useCallback(() => {
+    onCopy(message._id, message.content);
+  }, [onCopy, message._id, message.content]);
+
+  return (
+    <div
+      className={`flex gap-4 ${
+        message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+      }`}
+    >
+      {/* Avatar */}
+      <div
+        className={`flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
+          message.role === 'user'
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted text-muted-foreground'
+        }`}
+      >
+        {message.role === 'user' ? (
+          <User className="h-3 w-3 sm:h-4 sm:w-4" />
+        ) : (
+          <Bot className="h-3 w-3 sm:h-4 sm:w-4" />
+        )}
+      </div>
+
+      {/* Message Content */}
+      <div className={` max-w-3xl ${message.role === 'user' ? 'text-right' : 'text-left flex-1'}`}>
+        <Card
+          className={`${
+            message.role === 'user'
+              ? 'bg-chat-bubble-user text-chat-bubble-user-foreground ml-4 sm:ml-8 rounded-tr-none'
+              : 'bg-chat-bubble-ai text-chat-bubble-ai-foreground mr-4 sm:mr-8 rounded-tl-none'
+          } transition-all duration-200 hover:shadow-md group`}
+        >
+          <CardContent className="p-3 sm:p-4 ">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1">
+                <MessageRenderer
+                  content={message.content}
+                  role={message.role}
+                  onCopy={handleCopy}
+                  isCopied={isCopied}
+                />
+                
+                {/* Sources */}
+                {/* {message.sources && message.sources.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {message.sources.map((source, index) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="text-xs px-2 py-1"
+                        title={`Relevance: ${(source.relevanceScore * 100).toFixed(1)}%`}
+                      >
+                        {source.title}
+                      </Badge>
+                    ))}
+                  </div>
+                )} */}
+
+                {/* Timestamp */}
+                <p className="text-xs opacity-60 mt-2">
+                  {formatTimestamp(message.createdAt)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+});
+
+MessageItem.displayName = 'MessageItem';
+
+ChatInterface.displayName = 'ChatInterface';

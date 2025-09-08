@@ -221,6 +221,39 @@
   }
 }
 
+/* Extra small screens */
+@media (max-width: 480px) {
+  /* Reduce padding and margins for very small screens */
+  .p-6 {
+    padding: 1rem !important;
+  }
+  
+  .p-4 {
+    padding: 0.75rem !important;
+  }
+  
+  .gap-4 {
+    gap: 0.75rem !important;
+  }
+  
+  .space-y-6 > * + * {
+    margin-top: 1rem !important;
+  }
+  
+  .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  
+  /* Adjust text sizes for very small screens */
+  .text-xl {
+    font-size: 1.125rem !important;
+  }
+  
+  .text-lg {
+    font-size: 1rem !important;
+  }
+}
+
 /* Ensure tables are responsive */
 .markdown-wrapper table {
   display: block;
@@ -237,5 +270,30 @@
   .markdown-wrapper th,
   .markdown-wrapper td {
     padding: 0.5rem !important;
+  }
+}
+
+/* Mobile layout improvements */
+@media (max-width: 768px) {
+  /* Ensure proper scrolling on mobile */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Better touch targets */
+  button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve tap targets for small buttons */
+  .h-8.w-8 {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+  
+  /* Better spacing for mobile cards */
+  .space-y-2 > * + * {
+    margin-top: 0.75rem !important;
   }
 }
