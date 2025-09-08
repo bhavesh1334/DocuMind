@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
+import { Landing } from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import { useEffect, useState } from "react";
 
@@ -34,13 +35,41 @@ const queryClient = new QueryClient({
   },
 });
 
+interface User {
+  id: string;
+  name: string;
+  username: string;
+}
+
 const App = () => {
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
+    
+    // Check if user is stored in localStorage
+    const storedUser = localStorage.getItem('docuMindUser');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('docuMindUser');
+      }
+    }
   }, []);
+
+  const handleUserAuthenticated = (userData: User) => {
+    setUser(userData);
+    localStorage.setItem('docuMindUser', JSON.stringify(userData));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('docuMindUser');
+  };
 
   if (!mounted) {
     return null;
@@ -55,7 +84,16 @@ const App = () => {
             <Sonner />
             <BrowserRouter>
               <Routes>
-                <Route path="/" element={<Index />} />
+                <Route 
+                  path="/" 
+                  element={
+                    user ? (
+                      <Index user={user} onLogout={handleLogout} />
+                    ) : (
+                      <Landing onUserAuthenticated={handleUserAuthenticated} />
+                    )
+                  } 
+                />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

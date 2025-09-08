@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useDocuments, useDocumentUpload, useDeleteDocument } from '@/hooks/useApi';
+import { useDocuments, useUploadFiles, useAddUrl, useAddText, useDeleteDocument } from '@/hooks/useApi';
 import { Document } from '@/lib/api';
 
 const SUPPORTED_FILE_TYPES = {
@@ -29,7 +29,17 @@ const SUPPORTED_FILE_TYPES = {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_FILES = 5;
 
-export const FileUploadSection = () => {
+interface User {
+  id: string;
+  name: string;
+  username: string;
+}
+
+interface FileUploadSectionProps {
+  user: User;
+}
+
+export const FileUploadSection = ({ user }: FileUploadSectionProps) => {
   const [urlInput, setUrlInput] = useState('');
   const [textInput, setTextInput] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -37,9 +47,13 @@ export const FileUploadSection = () => {
   const { toast } = useToast();
 
   // API hooks
-  const { data: documentsResponse, isLoading: isLoadingDocuments, refetch } = useDocuments({ limit: 50 });
-  const { uploadFiles, addUrl, addText, isUploading } = useDocumentUpload();
+  const { data: documentsResponse, isLoading: isLoadingDocuments, refetch } = useDocuments({ limit: 50, userId: user.id });
+  const uploadFiles = useUploadFiles();
+  const addUrl = useAddUrl();
+  const addText = useAddText();
   const deleteDocument = useDeleteDocument();
+  
+  const isUploading = uploadFiles.isPending || addUrl.isPending || addText.isPending;
 
   console.log(documentsResponse,"Documet Response")
   const documents = useMemo(() => {
@@ -135,7 +149,7 @@ export const FileUploadSection = () => {
       return;
     }
 
-    uploadFiles(files, {
+    uploadFiles.mutate({ files, userId: user.id }, {
       onSuccess: () => {
         // Clear the file input
         if (fileInputRef.current) {
@@ -162,7 +176,7 @@ export const FileUploadSection = () => {
       return;
     }
 
-    addUrl(url, {
+    addUrl.mutate({ url, userId: user.id }, {
       onSuccess: () => {
         setUrlInput('');
         refetch();
@@ -184,7 +198,7 @@ export const FileUploadSection = () => {
     }
 
     const title = text.length > 50 ? text.substring(0, 50) + '...' : text;
-    addText({ text, title }, {
+    addText.mutate({ text, title, userId: user.id }, {
       onSuccess: () => {
         setTextInput('');
         refetch();

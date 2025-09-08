@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi, chatApi, Document, Chat, Message, ApiError } from '@/lib/api';
+import { documentsApi, chatApi, userApi, Document, Chat, Message, User, ApiError } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 // Query Keys
@@ -12,6 +12,7 @@ export const queryKeys = {
   chatsList: (params?: any) => ['chats', 'list', params] as const,
   chat: (id: string) => ['chats', id] as const,
   chatHistory: (id: string) => ['chats', id, 'history'] as const,
+  users: ['users'] as const,
 };
 
 // Document Hooks
@@ -20,6 +21,7 @@ export function useDocuments(params?: {
   limit?: number;
   type?: string;
   status?: string;
+  userId?: string;
 }) {
   return useQuery({
     queryKey: queryKeys.documentsList(params),
@@ -49,7 +51,8 @@ export function useUploadFiles() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: documentsApi.uploadFiles,
+    mutationFn: ({ files, userId, title }: { files: FileList; userId: string; title?: string }) =>
+      documentsApi.uploadFiles(files, userId, title),
     onSuccess: (response) => {
       // Invalidate and refetch documents
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
@@ -75,7 +78,8 @@ export function useAddUrl() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: documentsApi.addUrl,
+    mutationFn: ({ url, userId, title }: { url: string; userId: string; title?: string }) =>
+      documentsApi.addUrl(url, userId, title),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
       toast({
@@ -98,8 +102,8 @@ export function useAddText() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: ({ text, title }: { text: string; title?: string }) =>
-      documentsApi.addText(text, title),
+    mutationFn: ({ text, title, userId }: { text: string; title: string; userId: string }) =>
+      documentsApi.addText(text, title, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
       toast({
@@ -205,8 +209,9 @@ export function useSendMessage() {
       }
       
       // If a new chat was created, invalidate the new chat
-      if (response.data?.chat?._id) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.chat(response.data.chat._id) });
+      if (response.data?.chat?.id) {
+        const chatId = response.data.chat.id;
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
       }
     },
     onError: (error: ApiError) => {
@@ -271,4 +276,72 @@ export function useChatOperations() {
     isDeleting: deleteChat.isPending,
     error: sendMessage.error || createChat.error || deleteChat.error,
   };
+}
+
+// User Authentication Hooks
+export function useCreateOrLoginUser() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ name }: { name: string }) => userApi.createOrLogin(name),
+    onSuccess: (response) => {
+      const { user, isNewUser } = response.data!;
+      toast({
+        title: isNewUser ? "Welcome to DocuMind!" : "Welcome back!",
+        description: isNewUser 
+          ? `Your username is ${user.username}` 
+          : `Logged in as ${user.username}`,
+      });
+    },
+    onError: (error: ApiError) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create/login user",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useLoginWithUsername() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ username }: { username: string }) => userApi.loginWithUsername(username),
+    onSuccess: (response) => {
+      const { user } = response.data!;
+      toast({
+        title: "Welcome back!",
+        description: `Logged in as ${user.username}`,
+      });
+    },
+    onError: (error: ApiError) => {
+      toast({
+        title: "Error",
+        description: error.message || "User not found",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useDeleteUserData() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({ userId }: { userId: string }) => userApi.deleteUserData(userId),
+    onSuccess: () => {
+      toast({
+        title: "Data deleted",
+        description: "All your data has been successfully deleted.",
+      });
+    },
+    onError: (error: ApiError) => {
+      toast({
+        title: "Failed to delete data",
+        description: error.message || "Failed to delete your data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 }

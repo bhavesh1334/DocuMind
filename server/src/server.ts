@@ -13,6 +13,7 @@ import { initializeQdrant } from '@/services/vectorService';
 // Import routes
 import documentRoutes from '@/routes/documentRoutes';
 import chatRoutes from '@/routes/chatRoutes';
+import userRoutes from '@/routes/userRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -41,6 +42,7 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
+app.use('/api/users', userRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/chat', chatRoutes);
 

@@ -18,6 +18,7 @@ export interface IMessage {
 
 export interface IChat extends MongoDocument {
   _id: string;
+  userId: mongoose.Types.ObjectId;
   title: string;
   messages: IMessage[];
   documentIds: string[];
@@ -53,6 +54,11 @@ const messageSchema = new Schema<IMessage>({
 
 const chatSchema = new Schema<IChat>(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
     title: {
       type: String,
       required: true,
@@ -79,7 +85,8 @@ const chatSchema = new Schema<IChat>(
 );
 
 // Indexes
+chatSchema.index({ userId: 1, createdAt: -1 });
+chatSchema.index({ userId: 1, documentIds: 1 });
 chatSchema.index({ createdAt: -1 });
-chatSchema.index({ documentIds: 1 });
 
 export const Chat = mongoose.model<IChat>('Chat', chatSchema);

@@ -2,6 +2,7 @@ import mongoose, { Document as MongoDocument, Schema } from 'mongoose';
 
 export interface IDocument extends MongoDocument {
   _id: string;
+  userId: mongoose.Types.ObjectId;
   title: string;
   content: string;
   summary: string;
@@ -29,6 +30,11 @@ export interface IDocument extends MongoDocument {
 
 const documentSchema = new Schema<IDocument>(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
     title: {
       type: String,
       required: true,
@@ -109,8 +115,9 @@ const documentSchema = new Schema<IDocument>(
 );
 
 // Indexes for better performance
-documentSchema.index({ type: 1, status: 1 });
-documentSchema.index({ createdAt: -1 });
+documentSchema.index({ userId: 1, type: 1, status: 1 });
+documentSchema.index({ userId: 1, createdAt: -1 });
 documentSchema.index({ 'chunks.id': 1 });
+documentSchema.index({ createdAt: -1 });
 
 export const Document = mongoose.model<IDocument>('Document', documentSchema);

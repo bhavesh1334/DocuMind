@@ -11,7 +11,7 @@ import {
   uploadFiles,
   addUrl,
   addText,
-  getDocuments,
+  getUserDocuments,
   getDocument,
   deleteDocument,
   getDocumentSummary,
@@ -35,7 +35,7 @@ router.post('/url', validate(addUrlSchema), addUrl);
 router.post('/text', validate(addTextSchema), addText);
 
 // Get all documents with filtering and pagination
-router.get('/', validateQuery(documentFilterSchema), getDocuments);
+router.get('/', validateQuery(documentFilterSchema), getUserDocuments);
 
 // Get document summary (lighter version for listing)
 router.get('/summary', validateQuery(documentFilterSchema), getDocumentSummary);

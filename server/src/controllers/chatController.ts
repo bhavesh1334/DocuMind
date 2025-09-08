@@ -7,12 +7,20 @@ import { logger } from '@/utils/logger';
 // Create new chat
 export const createChat = async (req: Request, res: Response) => {
   try {
-    const { title, documentIds } = req.body;
+    const { title, documentIds, userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
     
     // Validate document IDs if provided
     if (documentIds && documentIds.length > 0) {
       const existingDocs = await Document.find({
         _id: { $in: documentIds },
+        userId,
         status: 'completed'
       });
       
@@ -25,6 +33,7 @@ export const createChat = async (req: Request, res: Response) => {
     }
 
     const chat = new Chat({
+      userId,
       title,
       documentIds: documentIds || [],
       messages: [],
@@ -49,14 +58,21 @@ export const createChat = async (req: Request, res: Response) => {
 // Send message
 export const sendMessage = async (req: Request, res: Response) => {
   try {
-    const { message, chatId, documentIds } = req.body;
+    const { message, chatId, documentIds, userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+    }
     
     let chat;
     let isNewChat = false;
 
     if (chatId) {
       // Find existing chat
-      chat = await Chat.findById(chatId);
+      chat = await Chat.findOne({ _id: chatId, userId });
       if (!chat) {
         return res.status(404).json({
           success: false,
@@ -67,14 +83,15 @@ export const sendMessage = async (req: Request, res: Response) => {
       // Create new chat
       const title = await chatService.generateTitle(message);
       
-      // If no documentIds provided, use all completed documents
+      // If no documentIds provided, use all completed documents for this user
       let defaultDocumentIds = documentIds || [];
       if (!documentIds || documentIds.length === 0) {
-        const allDocs = await Document.find({ status: 'completed' }).select('_id');
+        const allDocs = await Document.find({ userId, status: 'completed' }).select('_id');
         defaultDocumentIds = allDocs.map(doc => doc._id.toString());
       }
       
       chat = new Chat({
+        userId,
         title,
         documentIds: defaultDocumentIds,
         messages: [],
@@ -85,7 +102,7 @@ export const sendMessage = async (req: Request, res: Response) => {
     // Validate document IDs - use all completed docs if none specified
     let targetDocumentIds = documentIds || chat.documentIds;
     if (!targetDocumentIds || targetDocumentIds.length === 0) {
-      const allDocs = await Document.find({ status: 'completed' }).select('_id');
+      const allDocs = await Document.find({ userId, status: 'completed' }).select('_id');
       targetDocumentIds = allDocs.map(doc => doc._id.toString());
     }
     if (targetDocumentIds.length > 0) {

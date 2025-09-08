@@ -21,7 +21,17 @@ interface DisplayMessage {
   }>;
 }
 
-export const ChatInterface = () => {
+interface User {
+  id: string;
+  name: string;
+  username: string;
+}
+
+interface ChatInterfaceProps {
+  user: User;
+}
+
+export const ChatInterface = ({ user }: ChatInterfaceProps) => {
   const [inputValue, setInputValue] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);

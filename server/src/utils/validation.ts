@@ -37,6 +37,7 @@ export const paginationSchema = Joi.object({
 export const documentFilterSchema = Joi.object({
   type: Joi.string().valid('file', 'url', 'youtube', 'text').optional(),
   status: Joi.string().valid('processing', 'completed', 'failed').optional(),
+  userId: Joi.string().optional(),
 }).concat(paginationSchema);
 
 // File validation

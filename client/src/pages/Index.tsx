@@ -1,60 +1,47 @@
-import { useState } from 'react';
 import { Header } from '@/components/Header';
 import { FileUploadSection } from '@/components/FileUploadSection';
 import { ChatInterface } from '@/components/ChatInterface';
-import { AuthDialog } from '@/components/AuthDialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
+  id: string;
   name: string;
-  email: string;
+  username: string;
 }
 
-const Index = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+interface IndexProps {
+  user: User;
+  onLogout: () => void;
+}
+
+const Index = ({ user, onLogout }: IndexProps) => {
   const { toast } = useToast();
 
-  const handleLogin = () => {
-    setIsAuthDialogOpen(true);
-  };
-
   const handleLogout = () => {
-    setUser(null);
+    onLogout();
     toast({
       title: "Logged out",
       description: "You have been successfully logged out.",
     });
   };
 
-  const handleAuthSuccess = (userData: User) => {
-    setUser(userData);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-surface">
       {/* Header */}
-      <Header user={user} onLogin={handleLogin} onLogout={handleLogout} />
+      <Header user={user} onLogout={handleLogout} />
       
       {/* Main Content */}
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Left Panel - File Upload */}
         <div className="w-80 lg:w-96 flex-shrink-0 min-w-0 border-r border-border bg-card/50">
-          <FileUploadSection />
+          <FileUploadSection user={user} />
         </div>
         
         {/* Right Panel - Chat Interface */}
         <div className="flex-1 min-w-0">
-          <ChatInterface />
+          <ChatInterface user={user} />
         </div>
       </div>
-
-      {/* Authentication Dialog */}
-      <AuthDialog
-        isOpen={isAuthDialogOpen}
-        onOpenChange={setIsAuthDialogOpen}
-        onAuthSuccess={handleAuthSuccess}
-      />
     </div>
   );
 };

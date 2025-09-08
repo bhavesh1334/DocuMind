@@ -39,11 +39,21 @@ export interface Document {
 }
 
 export interface Chat {
-  _id: string;
+  id: string;
+  _id?: string; // Legacy field for backward compatibility
   title: string;
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  documentIds: string[];
+}
+
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Message {
@@ -128,11 +138,13 @@ class ApiClient {
   }
 
   // Document API methods
-  async uploadFiles(files: FileList): Promise<ApiResponse<Document[]>> {
+  async uploadFiles(files: FileList, userId: string, title?: string): Promise<ApiResponse<Document[]>> {
     const formData = new FormData();
     Array.from(files).forEach(file => {
       formData.append('files', file);
     });
+    formData.append('userId', userId);
+    if (title) formData.append('title', title);
 
     return this.request<Document[]>('/documents/upload', {
       method: 'POST',
@@ -141,17 +153,17 @@ class ApiClient {
     });
   }
 
-  async addUrl(url: string): Promise<ApiResponse<Document>> {
+  async addUrl(url: string, userId: string, title?: string): Promise<ApiResponse<Document>> {
     return this.request<Document>('/documents/url', {
       method: 'POST',
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, title, userId }),
     });
   }
 
-  async addText(text: string, title?: string): Promise<ApiResponse<Document>> {
+  async addText(text: string, title: string, userId: string): Promise<ApiResponse<Document>> {
     return this.request<Document>('/documents/text', {
       method: 'POST',
-      body: JSON.stringify({ content: text, title }),
+      body: JSON.stringify({ content: text, title, userId }),
     });
   }
 
@@ -160,15 +172,17 @@ class ApiClient {
     limit?: number;
     type?: string;
     status?: string;
-  }): Promise<ApiResponse<{ documents: Document[] }>> {
+    userId?: string;
+  }): Promise<ApiResponse<{ documents: Document[]; pagination: any }>> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.type) searchParams.append('type', params.type);
     if (params?.status) searchParams.append('status', params.status);
+    if (params?.userId) searchParams.append('userId', params.userId);
 
     const query = searchParams.toString();
-    return this.request<{ documents: Document[] }>(
+    return this.request<{ documents: Document[]; pagination: any }>(
       `/documents${query ? `?${query}` : ''}`
     );
   }
@@ -289,6 +303,27 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // User API methods
+  async createOrLoginUser(name: string): Promise<ApiResponse<{ user: User; isNewUser: boolean }>> {
+    return this.request<{ user: User; isNewUser: boolean }>('/users/create-or-login', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async loginWithUsername(username: string): Promise<ApiResponse<{ user: User }>> {
+    return this.request<{ user: User }>('/users/login', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+  }
+
+  async deleteUserData(userId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/users/${userId}/data`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 // Export singleton instance
@@ -296,9 +331,9 @@ export const apiClient = new ApiClient(API_BASE_URL);
 
 // Export individual API functions for easier use
 export const documentsApi = {
-  uploadFiles: (files: FileList) => apiClient.uploadFiles(files),
-  addUrl: (url: string) => apiClient.addUrl(url),
-  addText: (text: string, title?: string) => apiClient.addText(text, title),
+  uploadFiles: (files: FileList, userId: string, title?: string) => apiClient.uploadFiles(files, userId, title),
+  addUrl: (url: string, userId: string, title?: string) => apiClient.addUrl(url, userId, title),
+  addText: (text: string, title: string, userId: string) => apiClient.addText(text, title, userId),
   getDocuments: (params?: Parameters<typeof apiClient.getDocuments>[0]) => 
     apiClient.getDocuments(params),
   getDocument: (id: string) => apiClient.getDocument(id),
@@ -315,4 +350,10 @@ export const chatApi = {
   getChat: (id: string) => apiClient.getChat(id),
   getChatHistory: (id: string) => apiClient.getChatHistory(id),
   deleteChat: (id: string) => apiClient.deleteChat(id),
+};
+
+export const userApi = {
+  createOrLogin: (name: string) => apiClient.createOrLoginUser(name),
+  loginWithUsername: (username: string) => apiClient.loginWithUsername(username),
+  deleteUserData: (userId: string) => apiClient.deleteUserData(userId),
 };
