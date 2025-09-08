@@ -195,7 +195,12 @@ export const addText = async (req: Request, res: Response) => {
 export const getDocument = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const document = await Document.findById(id);
+    const { userId } = req.query;
+    
+    const filter: any = { _id: id };
+    if (userId) filter.userId = userId;
+    
+    const document = await Document.findOne(filter);
     
     if (!document) {
       return res.status(404).json({
@@ -221,7 +226,12 @@ export const getDocument = async (req: Request, res: Response) => {
 export const deleteDocument = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const document = await Document.findByIdAndDelete(id);
+    const { userId } = req.query;
+    
+    const filter: any = { _id: id };
+    if (userId) filter.userId = userId;
+    
+    const document = await Document.findOneAndDelete(filter);
     
     if (!document) {
       return res.status(404).json({

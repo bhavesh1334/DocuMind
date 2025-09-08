@@ -187,34 +187,46 @@ class ApiClient {
     );
   }
 
-  async getDocument(id: string): Promise<ApiResponse<Document>> {
-    return this.request<Document>(`/documents/${id}`);
+  async getDocument(id: string, userId?: string): Promise<ApiResponse<Document>> {
+    const searchParams = new URLSearchParams();
+    if (userId) searchParams.append('userId', userId);
+    const query = searchParams.toString();
+    return this.request<Document>(`/documents/${id}${query ? `?${query}` : ''}`);
   }
 
-  async deleteDocument(id: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/documents/${id}`, {
+  async deleteDocument(id: string, userId?: string): Promise<ApiResponse<void>> {
+    const searchParams = new URLSearchParams();
+    if (userId) searchParams.append('userId', userId);
+    const query = searchParams.toString();
+    return this.request<void>(`/documents/${id}${query ? `?${query}` : ''}`, {
       method: 'DELETE',
     });
   }
 
-  async getDocumentSummary(): Promise<ApiResponse<{
+  async getDocumentSummary(userId?: string): Promise<ApiResponse<{
     total: number;
     byType: Record<string, number>;
     byStatus: Record<string, number>;
   }>> {
-    return this.request('/documents/summary');
+    const searchParams = new URLSearchParams();
+    if (userId) searchParams.append('userId', userId);
+    const query = searchParams.toString();
+    return this.request(`/documents/summary${query ? `?${query}` : ''}`);
   }
 
   // Chat API methods
-  async createChat(): Promise<ApiResponse<Chat>> {
+  async createChat(title: string, userId: string, documentIds?: string[]): Promise<ApiResponse<Chat>> {
     return this.request<Chat>('/chat', {
       method: 'POST',
+      body: JSON.stringify({ title, userId, documentIds }),
     });
   }
 
   async sendMessage(
     message: string,
-    chatId?: string
+    userId: string,
+    chatId?: string,
+    documentIds?: string[]
   ): Promise<ApiResponse<{
     chatId: string;
     isNewChat: boolean;
@@ -272,17 +284,19 @@ class ApiClient {
       };
     }>('/chat/message', {
       method: 'POST',
-      body: JSON.stringify({ message, chatId }),
+      body: JSON.stringify({ message, userId, chatId, documentIds }),
     });
   }
 
   async getChats(params?: {
     page?: number;
     limit?: number;
+    userId?: string;
   }): Promise<ApiResponse<PaginatedResponse<Chat>>> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.userId) searchParams.append('userId', params.userId);
 
     const query = searchParams.toString();
     return this.request<PaginatedResponse<Chat>>(
@@ -290,16 +304,25 @@ class ApiClient {
     );
   }
 
-  async getChat(id: string): Promise<ApiResponse<Chat & { messages: Message[] }>> {
-    return this.request<Chat & { messages: Message[] }>(`/chat/${id}`);
+  async getChat(id: string, userId?: string): Promise<ApiResponse<Chat & { messages: Message[] }>> {
+    const searchParams = new URLSearchParams();
+    if (userId) searchParams.append('userId', userId);
+    const query = searchParams.toString();
+    return this.request<Chat & { messages: Message[] }>(`/chat/${id}${query ? `?${query}` : ''}`);
   }
 
-  async getChatHistory(id: string): Promise<ApiResponse<Message[]>> {
-    return this.request<Message[]>(`/chat/${id}/history`);
+  async getChatHistory(id: string, userId?: string): Promise<ApiResponse<Message[]>> {
+    const searchParams = new URLSearchParams();
+    if (userId) searchParams.append('userId', userId);
+    const query = searchParams.toString();
+    return this.request<Message[]>(`/chat/${id}/history${query ? `?${query}` : ''}`);
   }
 
-  async deleteChat(id: string): Promise<ApiResponse<void>> {
-    return this.request<void>(`/chat/${id}`, {
+  async deleteChat(id: string, userId?: string): Promise<ApiResponse<void>> {
+    const searchParams = new URLSearchParams();
+    if (userId) searchParams.append('userId', userId);
+    const query = searchParams.toString();
+    return this.request<void>(`/chat/${id}${query ? `?${query}` : ''}`, {
       method: 'DELETE',
     });
   }
@@ -336,20 +359,21 @@ export const documentsApi = {
   addText: (text: string, title: string, userId: string) => apiClient.addText(text, title, userId),
   getDocuments: (params?: Parameters<typeof apiClient.getDocuments>[0]) => 
     apiClient.getDocuments(params),
-  getDocument: (id: string) => apiClient.getDocument(id),
-  deleteDocument: (id: string) => apiClient.deleteDocument(id),
-  getSummary: () => apiClient.getDocumentSummary(),
+  getDocument: (id: string, userId?: string) => apiClient.getDocument(id, userId),
+  deleteDocument: (id: string, userId?: string) => apiClient.deleteDocument(id, userId),
+  getSummary: (userId?: string) => apiClient.getDocumentSummary(userId),
 };
 
 export const chatApi = {
-  createChat: () => apiClient.createChat(),
-  sendMessage: (message: string, chatId?: string) => 
-    apiClient.sendMessage(message, chatId),
+  createChat: (title: string, userId: string, documentIds?: string[]) => 
+    apiClient.createChat(title, userId, documentIds),
+  sendMessage: (message: string, userId: string, chatId?: string, documentIds?: string[]) => 
+    apiClient.sendMessage(message, userId, chatId, documentIds),
   getChats: (params?: Parameters<typeof apiClient.getChats>[0]) => 
     apiClient.getChats(params),
-  getChat: (id: string) => apiClient.getChat(id),
-  getChatHistory: (id: string) => apiClient.getChatHistory(id),
-  deleteChat: (id: string) => apiClient.deleteChat(id),
+  getChat: (id: string, userId?: string) => apiClient.getChat(id, userId),
+  getChatHistory: (id: string, userId?: string) => apiClient.getChatHistory(id, userId),
+  deleteChat: (id: string, userId?: string) => apiClient.deleteChat(id, userId),
 };
 
 export const userApi = {

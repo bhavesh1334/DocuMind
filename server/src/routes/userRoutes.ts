@@ -1,4 +1,9 @@
 import express, { Router } from 'express';
+import { validate } from '@/utils/validation';
+import {
+  createOrLoginUserSchema,
+  loginWithUsernameSchema,
+} from '@/utils/validation';
 import {
   createOrLoginUser,
   loginWithUsername,
@@ -9,10 +14,10 @@ import {
 const router: Router = express.Router();
 
 // POST /api/users/create-or-login - Create new user or login existing user by name
-router.post('/create-or-login', createOrLoginUser);
+router.post('/create-or-login', validate(createOrLoginUserSchema), createOrLoginUser);
 
 // POST /api/users/login - Login with username
-router.post('/login', loginWithUsername);
+router.post('/login', validate(loginWithUsernameSchema), loginWithUsername);
 
 // GET /api/users/:userId - Get user data with stats
 router.get('/:userId', getUserData);

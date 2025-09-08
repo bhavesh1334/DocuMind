@@ -3,7 +3,7 @@ import { validate, validateQuery } from '@/utils/validation';
 import {
   createChatSchema,
   sendMessageSchema,
-  paginationSchema,
+  chatFilterSchema,
 } from '@/utils/validation';
 import {
   createChat,
@@ -23,7 +23,7 @@ router.post('/', validate(createChatSchema), createChat);
 router.post('/message', validate(sendMessageSchema), sendMessage);
 
 // Get all chats with pagination
-router.get('/', validateQuery(paginationSchema), getChats);
+router.get('/', validateQuery(chatFilterSchema), getChats);
 
 // Get single chat with full message history
 router.get('/:id', getChat);

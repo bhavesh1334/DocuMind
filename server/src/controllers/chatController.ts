@@ -198,18 +198,23 @@ export const sendMessage = async (req: Request, res: Response) => {
 // Get all chats
 export const getChats = async (req: Request, res: Response) => {
   try {
-    const { page, limit, sort } = req.query as any;
+    // Use validated query parameters with defaults
+    const validatedQuery = (req as any).validatedQuery || {};
+    const { page = 1, limit = 10, sort = '-createdAt', userId } = validatedQuery;
+    
+    const filter: any = {};
+    if (userId) filter.userId = userId;
     
     const skip = (page - 1) * limit;
     
     const [chats, total] = await Promise.all([
-      Chat.find({})
+      Chat.find(filter)
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .select('title documentIds createdAt updatedAt')
+        .select('title documentIds createdAt updatedAt userId')
         .populate('documentIds', 'title type status'),
-      Chat.countDocuments({}),
+      Chat.countDocuments(filter),
     ]);
 
     // Add message count and last message info
@@ -255,8 +260,12 @@ export const getChats = async (req: Request, res: Response) => {
 export const getChat = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { userId } = req.query;
     
-    const chat = await Chat.findById(id).populate('documentIds', 'title type status summary');
+    const filter: any = { _id: id };
+    if (userId) filter.userId = userId;
+    
+    const chat = await Chat.findOne(filter).populate('documentIds', 'title type status summary');
     
     if (!chat) {
       return res.status(404).json({
@@ -282,8 +291,12 @@ export const getChat = async (req: Request, res: Response) => {
 export const getChatHistory = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { userId } = req.query;
     
-    const chat = await Chat.findById(id).select('messages');
+    const filter: any = { _id: id };
+    if (userId) filter.userId = userId;
+    
+    const chat = await Chat.findOne(filter).select('messages');
     
     if (!chat) {
       return res.status(404).json({
@@ -311,8 +324,12 @@ export const getChatHistory = async (req: Request, res: Response) => {
 export const deleteChat = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { userId } = req.query;
     
-    const chat = await Chat.findById(id);
+    const filter: any = { _id: id };
+    if (userId) filter.userId = userId;
+    
+    const chat = await Chat.findOne(filter);
     
     if (!chat) {
       return res.status(404).json({
@@ -321,7 +338,7 @@ export const deleteChat = async (req: Request, res: Response) => {
       });
     }
 
-    await Chat.findByIdAndDelete(id);
+    await Chat.findOneAndDelete(filter);
 
     res.json({
       success: true,

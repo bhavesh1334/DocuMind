@@ -3,28 +3,33 @@ import Joi from 'joi';
 // Document validation schemas
 export const uploadFileSchema = Joi.object({
   title: Joi.string().optional().max(500),
+  userId: Joi.string().required(),
 });
 
 export const addUrlSchema = Joi.object({
   url: Joi.string().uri().required(),
   title: Joi.string().optional().max(500),
+  userId: Joi.string().required(),
 });
 
 export const addTextSchema = Joi.object({
   content: Joi.string().required().min(10).max(50000),
   title: Joi.string().required().max(500),
+  userId: Joi.string().required(),
 });
 
 // Chat validation schemas
 export const createChatSchema = Joi.object({
   title: Joi.string().required().max(200),
   documentIds: Joi.array().items(Joi.string().regex(/^[0-9a-fA-F]{24}$/)).optional(),
+  userId: Joi.string().required(),
 });
 
 export const sendMessageSchema = Joi.object({
   message: Joi.string().required().min(1).max(2000),
   chatId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional(),
   documentIds: Joi.array().items(Joi.string().regex(/^[0-9a-fA-F]{24}$/)).optional(),
+  userId: Joi.string().required(),
 });
 
 // Query parameters validation
@@ -37,6 +42,20 @@ export const paginationSchema = Joi.object({
 export const documentFilterSchema = Joi.object({
   type: Joi.string().valid('file', 'url', 'youtube', 'text').optional(),
   status: Joi.string().valid('processing', 'completed', 'failed').optional(),
+  userId: Joi.string().optional(),
+}).concat(paginationSchema);
+
+// User validation schemas
+export const createOrLoginUserSchema = Joi.object({
+  name: Joi.string().required().min(1).max(100).trim(),
+});
+
+export const loginWithUsernameSchema = Joi.object({
+  username: Joi.string().required().min(1).max(50).trim(),
+});
+
+// Chat query validation
+export const chatFilterSchema = Joi.object({
   userId: Joi.string().optional(),
 }).concat(paginationSchema);
 

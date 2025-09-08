@@ -30,18 +30,18 @@ export function useDocuments(params?: {
   });
 }
 
-export function useDocument(id: string) {
+export function useDocument(id: string, userId?: string) {
   return useQuery({
     queryKey: queryKeys.document(id),
-    queryFn: () => documentsApi.getDocument(id),
+    queryFn: () => documentsApi.getDocument(id, userId),
     enabled: !!id,
   });
 }
 
-export function useDocumentsSummary() {
+export function useDocumentsSummary(userId?: string) {
   return useQuery({
     queryKey: queryKeys.documentsSummary,
-    queryFn: () => documentsApi.getSummary(),
+    queryFn: () => documentsApi.getSummary(userId),
     staleTime: 60000, // 1 minute
   });
 }
@@ -126,7 +126,8 @@ export function useDeleteDocument() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: documentsApi.deleteDocument,
+    mutationFn: ({ id, userId }: { id: string; userId?: string }) => 
+      documentsApi.deleteDocument(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
       toast({
@@ -148,6 +149,7 @@ export function useDeleteDocument() {
 export function useChats(params?: {
   page?: number;
   limit?: number;
+  userId?: string;
 }) {
   return useQuery({
     queryKey: queryKeys.chatsList(params),
@@ -156,18 +158,18 @@ export function useChats(params?: {
   });
 }
 
-export function useChat(id: string) {
+export function useChat(id: string, userId?: string) {
   return useQuery({
     queryKey: queryKeys.chat(id),
-    queryFn: () => chatApi.getChat(id),
+    queryFn: () => chatApi.getChat(id, userId),
     enabled: !!id,
   });
 }
 
-export function useChatHistory(id: string) {
+export function useChatHistory(id: string, userId?: string) {
   return useQuery({
     queryKey: queryKeys.chatHistory(id),
-    queryFn: () => chatApi.getChatHistory(id),
+    queryFn: () => chatApi.getChatHistory(id, userId),
     enabled: !!id,
   });
 }
@@ -177,7 +179,8 @@ export function useCreateChat() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: chatApi.createChat,
+    mutationFn: ({ title, userId, documentIds }: { title: string; userId: string; documentIds?: string[] }) =>
+      chatApi.createChat(title, userId, documentIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.chats });
     },
@@ -196,8 +199,8 @@ export function useSendMessage() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: ({ message, chatId }: { message: string; chatId?: string }) =>
-      chatApi.sendMessage(message, chatId),
+    mutationFn: ({ message, userId, chatId, documentIds }: { message: string; userId: string; chatId?: string; documentIds?: string[] }) =>
+      chatApi.sendMessage(message, userId, chatId, documentIds),
     onSuccess: (response, variables) => {
       // Invalidate chat queries
       queryClient.invalidateQueries({ queryKey: queryKeys.chats });
@@ -229,7 +232,8 @@ export function useDeleteChat() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: chatApi.deleteChat,
+    mutationFn: ({ id, userId }: { id: string; userId?: string }) =>
+      chatApi.deleteChat(id, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.chats });
       toast({
