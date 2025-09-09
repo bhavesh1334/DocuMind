@@ -432,9 +432,20 @@ export const getChat = async (req: Request, res: Response) => {
       });
     }
 
+    // Remove metadata from messages before sending to frontend
+    const chatData = chat.toJSON();
+    if (chatData.messages) {
+      chatData.messages = chatData.messages.map((message: any) => ({
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp,
+        // Exclude metadata field
+      }));
+    }
+
     res.json({
       success: true,
-      data: chat,
+      data: chatData,
     });
   } catch (error) {
     logger.error("Error fetching chat:", error);
@@ -463,10 +474,18 @@ export const getChatHistory = async (req: Request, res: Response) => {
       });
     }
 
+    // Remove metadata from messages before sending to frontend
+    const cleanMessages = chat.messages.map((message: any) => ({
+      role: message.role,
+      content: message.content,
+      timestamp: message.timestamp,
+      // Exclude metadata field
+    }));
+
     res.json({
       success: true,
       data: {
-        messages: chat.messages,
+        messages: cleanMessages,
       },
     });
   } catch (error) {
