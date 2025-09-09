@@ -11,9 +11,15 @@ importers:
       '@langchain/community':
         specifier: ^0.3.55
         version: 0.3.55(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.55.0)(deepmerge@4.3.1)(dotenv@17.2.2)(openai@5.12.2(ws@8.18.3)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.6.12)(@langchain/core@0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76)))(@qdrant/js-client-rest@1.15.1(typescript@5.9.2))(axios@1.11.0)(cheerio@1.1.2)(ibm-cloud-sdk-core@5.4.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(mammoth@1.10.0)(mongodb@6.18.0)(openai@5.12.2(ws@8.18.3)(zod@3.25.76))(pdf-parse@1.1.1)(playwright@1.55.0)(weaviate-client@3.8.1)(ws@8.18.3)(youtubei.js@15.0.1)
+      '@langchain/core':
+        specifier: ^0.3.75
+        version: 0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76))
       '@langchain/openai':
         specifier: ^0.6.11
         version: 0.6.11(@langchain/core@0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76)))(ws@8.18.3)
+      '@langchain/qdrant':
+        specifier: ^0.1.3
+        version: 0.1.3(@langchain/core@0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76)))(typescript@5.9.2)
       '@qdrant/js-client-rest':
         specifier: ^1.15.1
         version: 1.15.1(typescript@5.9.2)
@@ -574,6 +580,12 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       '@langchain/core': '>=0.3.68 <0.4.0'
+
+  '@langchain/qdrant@0.1.3':
+    resolution: {integrity: sha512-3cay+u3Ri7KPEwBrn/e0V2GPJDHz8U/ZetSjexB7kbgBJeljzEoRxXEeoDCd4pok48GA+n+j0/p+rPA0K7zedQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@langchain/core': '>=0.2.21 <0.4.0'
 
   '@langchain/textsplitters@0.1.0':
     resolution: {integrity: sha512-djI4uw9rlkAb5iMhtLED+xJebDdAG935AdP4eRTB02R7OB/act55Bj9wsskhZsvuyQRpO4O1wQOp85s6T6GWmw==}
@@ -2411,6 +2423,14 @@ snapshots:
       zod: 3.25.76
     transitivePeerDependencies:
       - ws
+
+  '@langchain/qdrant@0.1.3(@langchain/core@0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76)))(typescript@5.9.2)':
+    dependencies:
+      '@langchain/core': 0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76))
+      '@qdrant/js-client-rest': 1.15.1(typescript@5.9.2)
+      uuid: 10.0.0
+    transitivePeerDependencies:
+      - typescript
 
   '@langchain/textsplitters@0.1.0(@langchain/core@0.3.75(openai@5.12.2(ws@8.18.3)(zod@3.25.76)))':
     dependencies:
