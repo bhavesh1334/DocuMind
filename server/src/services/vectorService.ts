@@ -22,6 +22,8 @@ class VectorService {
     this.embeddings = new OpenAIEmbeddings({
       apiKey: process.env.OPENAI_API_KEY,
       model: "text-embedding-3-small",
+      timeout: 30000, // 30 seconds timeout
+      maxRetries: 2,
     });
 
     this.collectionName = process.env.QDRANT_COLLECTION_NAME || "documents";
@@ -132,7 +134,13 @@ class VectorService {
     }
 
     try {
-      const queryEmbedding = await this.embeddings.embedQuery(query);
+      // Validate and sanitize query
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        throw new Error('Search query is required and must be a non-empty string');
+      }
+      
+      const sanitizedQuery = query.trim();
+      const queryEmbedding = await this.embeddings.embedQuery(sanitizedQuery);
 
       const searchParams: any = {
         vector: queryEmbedding,
@@ -166,6 +174,17 @@ class VectorService {
       }));
     } catch (error) {
       logger.error("Failed to search vector database:", error);
+      
+      // Handle specific error types
+      const err: any = error;
+      if (err?.message?.includes('timeout') || err?.code === 'ECONNABORTED') {
+        throw new Error('Vector search timeout - please try again');
+      } else if (err?.message?.includes('API key')) {
+        throw new Error('OpenAI API key error during vector search');
+      } else if (err?.message?.includes('rate limit')) {
+        throw new Error('Rate limit exceeded - please wait and try again');
+      }
+      
       throw error;
     }
   }

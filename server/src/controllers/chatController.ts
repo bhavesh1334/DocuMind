@@ -60,10 +60,26 @@ export const sendMessage = async (req: Request, res: Response) => {
   try {
     const { message, chatId, documentIds, userId } = req.body;
 
+    // Validate required fields
     if (!userId) {
       return res.status(400).json({
         success: false,
         message: "User ID is required",
+      });
+    }
+
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is required and must be a non-empty string",
+      });
+    }
+
+    // Validate message length
+    if (message.length > 10000) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is too long. Maximum length is 10,000 characters",
       });
     }
 
@@ -144,11 +160,49 @@ export const sendMessage = async (req: Request, res: Response) => {
       content: msg.content,
     }));
 
-    // Generate response using chat service
-    const response = await chatService.chat(message, {
-      documentIds: targetDocumentIds,
-      conversationHistory,
-    });
+    // Generate response using chat service with timeout handling
+    let response;
+    try {
+      response = await Promise.race([
+        chatService.chat(message.trim(), {
+          documentIds: targetDocumentIds,
+          conversationHistory,
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Chat service timeout after 45 seconds')), 45000)
+        )
+      ]) as any;
+    } catch (chatError: any) {
+      logger.error('Chat service error:', chatError);
+      
+      // Return specific error based on the type
+      if (chatError.message?.includes('timeout')) {
+        return res.status(408).json({
+          success: false,
+          message: "Request timeout. Please try again with a shorter message or check your connection.",
+          error: "Request timeout"
+        });
+      }
+      
+      if (chatError.message?.includes('API key')) {
+        return res.status(401).json({
+          success: false,
+          message: "API configuration error. Please contact support.",
+          error: "Authentication failed"
+        });
+      }
+      
+      if (chatError.message?.includes('rate limit')) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many requests. Please wait a moment and try again.",
+          error: "Rate limit exceeded"
+        });
+      }
+      
+      // Re-throw for general error handling
+      throw chatError;
+    }
 
     // Add user message
     chat.messages.push({
@@ -214,21 +268,48 @@ export const sendMessage = async (req: Request, res: Response) => {
     logger.error("Error sending message:", error);
     const isProd = process.env.NODE_ENV === "production";
     const err = error as any;
+    
+    // Determine appropriate status code and message
+    let statusCode = 500;
+    let userMessage = "Failed to send message";
+    let errorCode = "INTERNAL_ERROR";
+    
+    if (err?.message?.includes('timeout')) {
+      statusCode = 408;
+      userMessage = "Request timeout. Please try again.";
+      errorCode = "TIMEOUT";
+    } else if (err?.message?.includes('API key') || err?.message?.includes('401')) {
+      statusCode = 401;
+      userMessage = "Authentication failed. Please check API configuration.";
+      errorCode = "AUTH_ERROR";
+    } else if (err?.message?.includes('rate limit') || err?.message?.includes('429')) {
+      statusCode = 429;
+      userMessage = "Too many requests. Please wait and try again.";
+      errorCode = "RATE_LIMIT";
+    } else if (err?.message?.includes('400') || err?.message?.includes('Bad Request')) {
+      statusCode = 400;
+      userMessage = "Invalid request. Please check your input.";
+      errorCode = "BAD_REQUEST";
+    }
+    
     const responsePayload: any = {
       success: false,
-      message: "Failed to send message",
+      message: userMessage,
       error: err?.message || "Unknown error",
+      code: errorCode,
     };
+    
     // Expose more diagnostics in non-production to aid debugging
     if (!isProd) {
       responsePayload.details = {
         name: err?.name,
         code: err?.code,
         cause: err?.cause,
-        stack: err?.stack,
+        stack: err?.stack?.split('\n').slice(0, 10).join('\n'), // Limit stack trace
       };
     }
-    res.status(500).json(responsePayload);
+    
+    res.status(statusCode).json(responsePayload);
   }
 };
 

@@ -29,6 +29,8 @@ class ChatService {
       model: "gpt-4o-mini",
       temperature: 0.7,
       maxTokens: 1000,
+      timeout: 30000, // 30 seconds timeout
+      maxRetries: 2,
     });
 
     this.queryEnhancerLLM = new ChatOpenAI({
@@ -36,6 +38,8 @@ class ChatService {
       model: "gpt-4o-mini",
       temperature: 0.3,
       maxTokens: 200,
+      timeout: 15000, // 15 seconds timeout
+      maxRetries: 2,
     });
   }
 
@@ -103,8 +107,16 @@ Return only the enhanced query without any explanations.`,
         );
       }
 
+      // Validate query input
+      if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        throw new Error("Query is required and must be a non-empty string");
+      }
+
+      // Truncate very long queries to prevent API issues
+      const truncatedQuery = query.length > 4000 ? query.substring(0, 4000) + "..." : query;
+
       // Step 1: Enhance the query
-      const enhancedQuery = await this.enhanceQuery(query, conversationHistory);
+      const enhancedQuery = await this.enhanceQuery(truncatedQuery, conversationHistory);
 
       // Step 2: Retrieve relevant chunks
       const retrievedChunks = await vectorService.searchSimilar(
@@ -156,7 +168,7 @@ ${relevantContext}`;
         conversationContext = `\n\nRecent conversation:\n${conversationContext}\n`;
       }
 
-      const userPrompt = `${conversationContext}Human: ${query}
+      const userPrompt = `${conversationContext}Human: ${truncatedQuery}
 
 Please answer this question based on the provided context.`;
 
@@ -191,23 +203,36 @@ Please answer this question based on the provided context.`;
       logger.error("Error in chat service:", error);
       const err: any = error;
       const baseMessage = "Failed to generate response";
-      const status = err?.status || err?.response?.status;
-      const providerErrorMessage =
-        err?.response?.data?.error?.message ||
-        err?.response?.data?.message ||
-        err?.data?.error ||
-        err?.code;
-      const providerDetail = err?.response?.data ?? err?.data ?? err?.response;
-      const detailString =
-        typeof providerDetail === "string"
-          ? providerDetail
-          : providerDetail
-          ? JSON.stringify(providerDetail)
-          : undefined;
-      const reason =
-        providerErrorMessage || err?.message || detailString || "Unknown error";
+      
+      // Handle different types of errors
+      let status: number | undefined;
+      let errorMessage: string;
+      
+      if (err?.response) {
+        // HTTP response error
+        status = err.response.status;
+        errorMessage = err.response.data?.error?.message || 
+                      err.response.data?.message || 
+                      err.response.statusText || 
+                      'HTTP request failed';
+      } else if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+        // Timeout error
+        errorMessage = 'Request timeout - please try again';
+        status = 408;
+      } else if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED') {
+        // Network error
+        errorMessage = 'Network connection failed';
+        status = 503;
+      } else if (err?.message?.includes('API key')) {
+        // API key error
+        errorMessage = 'Invalid or missing API key';
+        status = 401;
+      } else {
+        // Generic error
+        errorMessage = err?.message || 'Unknown error occurred';
+      }
 
-      const parts = [reason];
+      const parts = [errorMessage];
       if (status) parts.unshift(`HTTP ${status}`);
 
       throw new Error(`${baseMessage}. Reason: ${parts.join(" - ")}`);
