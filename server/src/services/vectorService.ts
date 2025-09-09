@@ -1,6 +1,6 @@
-import { QdrantClient } from '@qdrant/js-client-rest';
-import { OpenAIEmbeddings } from '@langchain/openai';
-import { logger } from '@/utils/logger';
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { logger } from "@/utils/logger";
 
 class VectorService {
   private client: QdrantClient;
@@ -10,20 +10,24 @@ class VectorService {
 
   constructor() {
     this.client = new QdrantClient({
-      host: process.env.QDRANT_HOST || 'localhost',
-      port: parseInt(process.env.QDRANT_PORT || '6333'),
+      host: process.env.QDRANT_HOST || "localhost",
+      port: parseInt(process.env.QDRANT_PORT || "6333"),
     });
-    
+
     this.embeddings = new OpenAIEmbeddings({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: 'text-embedding-3-small'
+      modelName: "text-embedding-3-small",
     });
-    
-    this.collectionName = process.env.QDRANT_COLLECTION_NAME || 'documents';
+
+    this.collectionName = process.env.QDRANT_COLLECTION_NAME || "documents";
   }
 
   async initialize(): Promise<void> {
     try {
+      // Test connection to Qdrant
+      await this.client.getCollections();
+      logger.info("Connected to Qdrant vector database");
+
       // Check if collection exists
       const collections = await this.client.getCollections();
       const collectionExists = collections.collections.some(
@@ -35,7 +39,7 @@ class VectorService {
         await this.client.createCollection(this.collectionName, {
           vectors: {
             size: 1536, // OpenAI text-embedding-3-small dimension
-            distance: 'Cosine',
+            distance: "Cosine",
           },
           optimizers_config: {
             default_segment_number: 2,
@@ -43,32 +47,44 @@ class VectorService {
           replication_factor: 1,
         });
         logger.info(`Created Qdrant collection: ${this.collectionName}`);
+      } else {
+        logger.info(`Using existing Qdrant collection: ${this.collectionName}`);
       }
 
       this.isInitialized = true;
-      logger.info('Vector service initialized successfully');
+      logger.info("Vector service initialized successfully");
     } catch (error) {
-      logger.error('Failed to initialize vector service:', error);
-      throw error;
+      logger.error("Failed to initialize vector service:", error);
+      // Don't throw error in production to allow server to start without vector service
+      if (process.env.NODE_ENV === "production") {
+        logger.warn(
+          "Continuing without vector service - some features may be unavailable"
+        );
+        this.isInitialized = false;
+      } else {
+        throw error;
+      }
     }
   }
 
-  async addChunks(chunks: Array<{
-    id: string;
-    content: string;
-    documentId: string;
-    metadata: Record<string, any>;
-  }>): Promise<void> {
+  async addChunks(
+    chunks: Array<{
+      id: string;
+      content: string;
+      documentId: string;
+      metadata: Record<string, any>;
+    }>
+  ): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
       const points = [];
-      
+
       for (const chunk of chunks) {
         const embedding = await this.embeddings.embedQuery(chunk.content);
-        
+
         points.push({
           id: chunk.id,
           vector: embedding,
@@ -88,7 +104,7 @@ class VectorService {
         logger.info(`Added ${points.length} chunks to vector database`);
       }
     } catch (error) {
-      logger.error('Failed to add chunks to vector database:', error);
+      logger.error("Failed to add chunks to vector database:", error);
       throw error;
     }
   }
@@ -97,20 +113,22 @@ class VectorService {
     query: string,
     limit: number = 5,
     documentIds?: string[]
-  ): Promise<Array<{
-    id: string;
-    content: string;
-    score: number;
-    documentId: string;
-    metadata: Record<string, any>;
-  }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      content: string;
+      score: number;
+      documentId: string;
+      metadata: Record<string, any>;
+    }>
+  > {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
       const queryEmbedding = await this.embeddings.embedQuery(query);
-      
+
       const searchParams: any = {
         vector: queryEmbedding,
         limit,
@@ -122,14 +140,17 @@ class VectorService {
         searchParams.filter = {
           must: [
             {
-              key: 'documentId',
+              key: "documentId",
               match: { any: documentIds },
             },
           ],
         };
       }
 
-      const searchResult = await this.client.search(this.collectionName, searchParams);
+      const searchResult = await this.client.search(
+        this.collectionName,
+        searchParams
+      );
 
       return searchResult.map((result) => ({
         id: result.id as string,
@@ -139,7 +160,7 @@ class VectorService {
         metadata: result.payload || {},
       }));
     } catch (error) {
-      logger.error('Failed to search vector database:', error);
+      logger.error("Failed to search vector database:", error);
       throw error;
     }
   }
@@ -156,7 +177,7 @@ class VectorService {
       });
       logger.info(`Deleted ${chunkIds.length} chunks from vector database`);
     } catch (error) {
-      logger.error('Failed to delete chunks from vector database:', error);
+      logger.error("Failed to delete chunks from vector database:", error);
       throw error;
     }
   }
@@ -172,7 +193,7 @@ class VectorService {
         filter: {
           must: [
             {
-              key: 'documentId',
+              key: "documentId",
               match: { value: documentId },
             },
           ],
@@ -180,7 +201,10 @@ class VectorService {
       });
       logger.info(`Deleted all chunks for document ${documentId}`);
     } catch (error) {
-      logger.error(`Failed to delete chunks for document ${documentId}:`, error);
+      logger.error(
+        `Failed to delete chunks for document ${documentId}:`,
+        error
+      );
       throw error;
     }
   }
@@ -193,7 +217,7 @@ class VectorService {
     try {
       return await this.client.getCollection(this.collectionName);
     } catch (error) {
-      logger.error('Failed to get collection info:', error);
+      logger.error("Failed to get collection info:", error);
       throw error;
     }
   }

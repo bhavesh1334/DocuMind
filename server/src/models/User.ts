@@ -1,4 +1,4 @@
-import mongoose, { Document as MongoDocument, Schema } from 'mongoose';
+import mongoose, { Document as MongoDocument, Schema } from "mongoose";
 
 export interface IUser extends MongoDocument {
   _id: string;
@@ -14,7 +14,7 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: true,
       trim: true,
-      maxlength: 100
+      maxlength: 100,
     },
     username: {
       type: String,
@@ -23,8 +23,8 @@ const userSchema = new Schema<IUser>(
       trim: true,
       lowercase: true,
       match: /^@[a-z0-9_]+$/,
-      maxlength: 50
-    }
+      maxlength: 50,
+    },
   },
   {
     timestamps: true,
@@ -34,30 +34,32 @@ const userSchema = new Schema<IUser>(
         delete ret._id;
         delete ret.__v;
         return ret;
-      }
-    }
+      },
+    },
   }
 );
 
 // Indexes
-userSchema.index({ username: 1 });
 userSchema.index({ createdAt: -1 });
 
 // Static method to generate unique username
-userSchema.statics.generateUsername = async function(name: string): Promise<string> {
-  const baseUsername = name.toLowerCase()
-    .replace(/[^a-z0-9]/g, '') // Remove special characters
+userSchema.statics.generateUsername = async function (
+  name: string
+): Promise<string> {
+  const baseUsername = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "") // Remove special characters
     .substring(0, 20); // Limit length
-  
+
   let username = `@${baseUsername}`;
   let counter = Math.floor(Math.random() * 9000) + 1000; // Random 4-digit number
-  
+
   // Check if username exists and increment counter if needed
   while (await this.findOne({ username: `${username}${counter}` })) {
     counter = Math.floor(Math.random() * 9000) + 1000;
   }
-  
+
   return `${username}${counter}`;
 };
 
-export const User = mongoose.model<IUser>('User', userSchema);
+export const User = mongoose.model<IUser>("User", userSchema);
