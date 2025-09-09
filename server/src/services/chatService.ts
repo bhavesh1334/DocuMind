@@ -189,20 +189,28 @@ Please answer this question based on the provided context.`;
       };
     } catch (error) {
       logger.error("Error in chat service:", error);
-      const err = error as any;
+      const err: any = error;
       const baseMessage = "Failed to generate response";
+      const status = err?.status || err?.response?.status;
+      const providerErrorMessage =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.message ||
+        err?.data?.error ||
+        err?.code;
       const providerDetail = err?.response?.data ?? err?.data ?? err?.response;
-      const reason =
-        err?.message ||
-        (typeof providerDetail === "string"
+      const detailString =
+        typeof providerDetail === "string"
           ? providerDetail
           : providerDetail
           ? JSON.stringify(providerDetail)
-          : undefined) ||
-        err?.code ||
-        "Unknown error";
-      // Include a concise, user-safe reason while preserving full details in logs
-      throw new Error(`${baseMessage}. Reason: ${String(reason)}`);
+          : undefined;
+      const reason =
+        providerErrorMessage || err?.message || detailString || "Unknown error";
+
+      const parts = [reason];
+      if (status) parts.unshift(`HTTP ${status}`);
+
+      throw new Error(`${baseMessage}. Reason: ${parts.join(" - ")}`);
     }
   }
 
