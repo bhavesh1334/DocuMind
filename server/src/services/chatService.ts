@@ -25,15 +25,15 @@ class ChatService {
 
   constructor() {
     this.llm = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-4o-mini",
+      apiKey: process.env.OPENAI_API_KEY,
+      model: "gpt-4o-mini",
       temperature: 0.7,
       maxTokens: 1000,
     });
 
     this.queryEnhancerLLM = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-4.1-nano",
+      apiKey: process.env.OPENAI_API_KEY,
+      model: "gpt-4o-mini",
       temperature: 0.3,
       maxTokens: 200,
     });
@@ -77,7 +77,13 @@ Return only the enhanced query without any explanations.`,
         },
       ]);
 
-      const enhancedQuery = (response.content as string).trim();
+      const enhancedQuery = (
+        Array.isArray((response as any).content)
+          ? (response as any).content
+              .map((c: any) => (typeof c === "string" ? c : c?.text || ""))
+              .join("")
+          : ((response as any).content as string)
+      ).trim();
       logger.info(`Query enhanced: "${query}" -> "${enhancedQuery}"`);
 
       return enhancedQuery;
@@ -164,8 +170,14 @@ Please answer this question based on the provided context.`;
         new Set(retrievedChunks.map((chunk) => chunk.documentId))
       );
 
+      const content = Array.isArray((response as any).content)
+        ? (response as any).content
+            .map((c: any) => (typeof c === "string" ? c : c?.text || ""))
+            .join("")
+        : ((response as any).content as string);
+
       return {
-        content: response.content as string,
+        content,
         sources,
         retrievedChunks: retrievedChunks.map((chunk) => ({
           documentId: chunk.documentId,
@@ -179,9 +191,14 @@ Please answer this question based on the provided context.`;
       logger.error("Error in chat service:", error);
       const err = error as any;
       const baseMessage = "Failed to generate response";
+      const providerDetail = err?.response?.data ?? err?.data ?? err?.response;
       const reason =
         err?.message ||
-        err?.response?.data?.error ||
+        (typeof providerDetail === "string"
+          ? providerDetail
+          : providerDetail
+          ? JSON.stringify(providerDetail)
+          : undefined) ||
         err?.code ||
         "Unknown error";
       // Include a concise, user-safe reason while preserving full details in logs
