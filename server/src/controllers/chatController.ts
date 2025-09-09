@@ -307,14 +307,28 @@ export const sendMessage = async (req: Request, res: Response) => {
         statusCode: err?.statusCode,
         cause: err?.cause,
         stack: err?.stack, // Full stack trace
+        // Include ChatService error details if available
+        ...(err?.details || {}),
         // Include any additional error properties
         ...Object.getOwnPropertyNames(err).reduce((acc, key) => {
-          if (!['name', 'message', 'stack'].includes(key)) {
+          if (!['name', 'message', 'stack', 'details'].includes(key)) {
             acc[key] = err[key];
           }
           return acc;
         }, {} as any),
       },
+      // Include original error from ChatService if available
+      originalError: err?.originalError ? {
+        name: err.originalError.name,
+        message: err.originalError.message,
+        code: err.originalError.code,
+        status: err.originalError.status,
+        response: err.originalError.response ? {
+          status: err.originalError.response.status,
+          statusText: err.originalError.response.statusText,
+          data: err.originalError.response.data
+        } : undefined
+      } : undefined,
       // Include request context for debugging
       context: {
         method: req.method,

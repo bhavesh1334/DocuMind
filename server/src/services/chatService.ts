@@ -202,40 +202,77 @@ Please answer this question based on the provided context.`;
     } catch (error) {
       logger.error("Error in chat service:", error);
       const err: any = error;
-      const baseMessage = "Failed to generate response";
       
-      // Handle different types of errors
-      let status: number | undefined;
-      let errorMessage: string;
+      // Log the complete error object for debugging
+      logger.error("Complete error object:", {
+        message: err?.message,
+        name: err?.name,
+        code: err?.code,
+        status: err?.status,
+        response: err?.response ? {
+          status: err.response.status,
+          statusText: err.response.statusText,
+          data: err.response.data,
+          headers: err.response.headers
+        } : undefined,
+        stack: err?.stack
+      });
+      
+      // Create detailed error with all available information
+      const errorDetails: any = {
+        originalMessage: err?.message,
+        name: err?.name,
+        code: err?.code,
+        status: err?.status
+      };
+      
+      let finalErrorMessage = "Failed to generate response";
       
       if (err?.response) {
-        // HTTP response error
-        status = err.response.status;
-        errorMessage = err.response.data?.error?.message || 
-                      err.response.data?.message || 
-                      err.response.statusText || 
-                      'HTTP request failed';
+        // OpenAI API error response
+        errorDetails.httpStatus = err.response.status;
+        errorDetails.httpStatusText = err.response.statusText;
+        errorDetails.responseData = err.response.data;
+        
+        // Extract detailed OpenAI error information
+        const openAIError = err.response.data?.error;
+        if (openAIError) {
+          errorDetails.openAIError = {
+            message: openAIError.message,
+            type: openAIError.type,
+            param: openAIError.param,
+            code: openAIError.code
+          };
+          
+          finalErrorMessage = `OpenAI API Error (${err.response.status}): ${openAIError.message}`;
+          if (openAIError.type) finalErrorMessage += ` [Type: ${openAIError.type}]`;
+          if (openAIError.param) finalErrorMessage += ` [Param: ${openAIError.param}]`;
+          if (openAIError.code) finalErrorMessage += ` [Code: ${openAIError.code}]`;
+        } else {
+          finalErrorMessage = `HTTP ${err.response.status}: ${err.response.statusText || 'Request failed'}`;
+          if (err.response.data?.message) {
+            finalErrorMessage += ` - ${err.response.data.message}`;
+          }
+        }
       } else if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
-        // Timeout error
-        errorMessage = 'Request timeout - please try again';
-        status = 408;
+        finalErrorMessage = 'Request timeout - please try again';
+        errorDetails.timeoutError = true;
       } else if (err?.code === 'ENOTFOUND' || err?.code === 'ECONNREFUSED') {
-        // Network error
-        errorMessage = 'Network connection failed';
-        status = 503;
+        finalErrorMessage = 'Network connection failed';
+        errorDetails.networkError = true;
       } else if (err?.message?.includes('API key')) {
-        // API key error
-        errorMessage = 'Invalid or missing API key';
-        status = 401;
+        finalErrorMessage = 'Invalid or missing API key';
+        errorDetails.authError = true;
       } else {
-        // Generic error
-        errorMessage = err?.message || 'Unknown error occurred';
+        finalErrorMessage = `Unexpected error: ${err?.message || 'Unknown error occurred'}`;
       }
-
-      const parts = [errorMessage];
-      if (status) parts.unshift(`HTTP ${status}`);
-
-      throw new Error(`${baseMessage}. Reason: ${parts.join(" - ")}`);
+      
+      // Create comprehensive error with all details
+      const comprehensiveError = new Error(finalErrorMessage);
+      (comprehensiveError as any).details = errorDetails;
+      (comprehensiveError as any).originalError = err;
+      
+      throw comprehensiveError;
     }
   }
 
