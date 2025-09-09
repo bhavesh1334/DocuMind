@@ -1,23 +1,30 @@
 # Build stage
 FROM node:18-alpine AS builder
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY pnpm-lock.yaml ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install ALL dependencies (including dev dependencies for building)
+RUN pnpm install --frozen-lockfile
 
 # Copy source code
 COPY src/ ./src/
 
 # Build the application
-RUN npm run build
+RUN pnpm run build
 
 # Production stage
 FROM node:18-alpine AS production
+
+# Install pnpm globally
+RUN npm install -g pnpm
 
 WORKDIR /app
 
@@ -27,9 +34,10 @@ RUN adduser -S nodejs -u 1001
 
 # Copy package files
 COPY package*.json ./
+COPY pnpm-lock.yaml ./
 
 # Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN pnpm install --frozen-lockfile --prod
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
