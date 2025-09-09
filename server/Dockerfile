@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Install pnpm globally
 RUN npm install -g pnpm
@@ -21,7 +21,7 @@ COPY src/ ./src/
 RUN pnpm run build
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 # Install pnpm globally
 RUN npm install -g pnpm
