@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi, chatApi, userApi, Document, Chat, Message, User, ApiError } from '@/lib/api';
+import { documentsApi, chatApi, userApi, ApiError } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 // Query Keys
@@ -11,7 +11,6 @@ export const queryKeys = {
   chats: ['chats'] as const,
   chatsList: (params?: any) => ['chats', 'list', params] as const,
   chat: (id: string) => ['chats', id] as const,
-  chatHistory: (id: string) => ['chats', id, 'history'] as const,
   users: ['users'] as const,
 };
 
@@ -169,13 +168,6 @@ export function useChat(id: string, userId?: string) {
   });
 }
 
-export function useChatHistory(id: string, userId?: string) {
-  return useQuery({
-    queryKey: [...queryKeys.chatHistory(id), userId],
-    queryFn: () => chatApi.getChatHistory(id, userId),
-    enabled: !!id && !!userId, // Require both id and userId
-  });
-}
 
 export function useCreateChat() {
   const queryClient = useQueryClient();

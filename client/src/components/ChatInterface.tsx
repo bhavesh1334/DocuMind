@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, Copy, Check } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useChatOperations, useChat, useDocuments } from '@/hooks/useApi';
-import { Chat, Message as ApiMessage } from '@/lib/api';
 import { MessageRenderer } from '@/components/MessageRenderer';
 
 interface DisplayMessage {
@@ -35,7 +33,6 @@ interface ChatInterfaceProps {
 
 export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
   const [inputValue, setInputValue] = useState('');
-  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -48,7 +45,7 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
 
   // API hooks
   const { data: currentChatResponse } = useChat(currentChatId || '', user.id);
-  const { sendMessage, createChat, isSending } = useChatOperations();
+  const { sendMessage, isSending } = useChatOperations();
   const { data: documentsResponse } = useDocuments({ limit: 50, userId: user.id });
 
   const currentChat = currentChatResponse?.data;
@@ -254,23 +251,6 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
     }
   }, [handleSendMessage]);
 
-  const copyMessage = useCallback(async (messageId: string, content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
-      toast({
-        title: "Copied to clipboard",
-        description: "Message content has been copied.",
-      });
-    } catch (error) {
-      toast({
-        title: "Failed to copy",
-        description: "Could not copy message to clipboard.",
-        variant: "destructive",
-      });
-    }
-  }, []);
 
   const formatTimestamp = useCallback((timestamp: string) => {
     if (!timestamp) return '';
@@ -314,8 +294,6 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
             <MessageItem
               key={message._id}
               message={message}
-              onCopy={copyMessage}
-              isCopied={copiedMessageId === message._id}
               formatTimestamp={formatTimestamp}
             />
           ))}
@@ -397,15 +375,10 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
 });
 
 // Memoized message item component to prevent unnecessary re-renders
-const MessageItem = memo(({ message, onCopy, isCopied, formatTimestamp }: {
+const MessageItem = memo(({ message, formatTimestamp }: {
   message: DisplayMessage;
-  onCopy: (messageId: string, content: string) => void;
-  isCopied: boolean;
   formatTimestamp: (timestamp: string) => string;
 }) => {
-  const handleCopy = useCallback(() => {
-    onCopy(message._id, message.content);
-  }, [onCopy, message._id, message.content]);
 
   return (
     <div
@@ -443,25 +416,8 @@ const MessageItem = memo(({ message, onCopy, isCopied, formatTimestamp }: {
                 <MessageRenderer
                   content={message.content}
                   role={message.role}
-                  onCopy={handleCopy}
-                  isCopied={isCopied}
                 />
                 
-                {/* Sources */}
-                {/* {message.sources && message.sources.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {message.sources.map((source, index) => (
-                      <Badge
-                        key={index}
-                        variant="secondary"
-                        className="text-xs px-2 py-1"
-                        title={`Relevance: ${(source.relevanceScore * 100).toFixed(1)}%`}
-                      >
-                        {source.title}
-                      </Badge>
-                    ))}
-                  </div>
-                )} */}
 
                 {/* Timestamp */}
                 <p className="text-xs opacity-60 mt-2">

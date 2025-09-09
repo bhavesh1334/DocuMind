@@ -10,15 +10,11 @@ import rehypeSanitize from 'rehype-sanitize';
 interface MessageRendererProps {
   content: string;
   role: 'user' | 'assistant';
-  onCopy?: () => void;
-  isCopied?: boolean;
 }
 
 export const MessageRenderer: React.FC<MessageRendererProps> = ({
   content,
   role,
-  onCopy,
-  isCopied,
 }) => {
   const isDark = document.documentElement.classList.contains('dark');
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, Link, Type, Trash2, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertCircle, CheckCircleIcon, CheckCheck, CheckCircle2, AlertTriangle, LoaderCircle } from 'lucide-react';
+import { Upload, File, Link, Type, Trash2, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertTriangle, LoaderCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,7 +51,6 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
   
   const isUploading = uploadFiles.isPending || addUrl.isPending || addText.isPending;
 
-  console.log(documentsResponse,"Documet Response")
   const documents = useMemo(() => {
     return documentsResponse?.data?.documents || []
   }, [documentsResponse]);
@@ -396,10 +395,6 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
                 {documents.map((document) => (
                   <Card key={document.id || document._id} className="group transition-all duration-200 hover:shadow-md relative">
                     <CardContent className="p-3 sm:p-4">
-                      {/* Status Icon - Top Right */}
-                      {/* <div className="absolute top-3 sm:top-4 right-3 sm:right-4">
-                        {getStatusBadge(document.status)}
-                      </div> */}
                       
                       <div className="flex items-center justify-between ">
                         <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
