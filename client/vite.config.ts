@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => ({
   define: {
     'process.env.VITE_API_URL': JSON.stringify(
       mode === 'production' 
-        ? process.env.VITE_API_URL || 'https://your-backend-url.onrender.com/api'
-        : 'http://localhost:3001/api'
+        ? process.env.VITE_API_URL || 'https://documind-backend-u49o.onrender.com/api'
+        : 'https://documind-backend-u49o.onrender.com/api'
     )
   }
 }));
