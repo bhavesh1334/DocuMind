@@ -54,8 +54,38 @@ class VectorService {
           replication_factor: 1,
         });
         logger.info(`Created Qdrant collection: ${this.collectionName}`);
+        
+        // Create index for documentId field to enable filtering
+        try {
+          await this.client.createPayloadIndex(this.collectionName, {
+            field_name: "documentId",
+            field_schema: "keyword",
+          });
+          logger.info(`Created index for documentId field in collection: ${this.collectionName}`);
+        } catch (indexError) {
+          logger.error("Failed to create documentId index:", indexError);
+          // Don't throw - collection is still usable without filtering
+        }
       } else {
         logger.info(`Using existing Qdrant collection: ${this.collectionName}`);
+        
+        // Check if index exists and create it if missing
+        try {
+          const collectionInfo = await this.client.getCollection(this.collectionName);
+          const hasDocumentIdIndex = collectionInfo.payload_schema?.documentId;
+          
+          if (!hasDocumentIdIndex) {
+            logger.info("DocumentId index not found, creating it...");
+            await this.client.createPayloadIndex(this.collectionName, {
+              field_name: "documentId",
+              field_schema: "keyword",
+            });
+            logger.info(`Created missing documentId index in collection: ${this.collectionName}`);
+          }
+        } catch (indexError) {
+          logger.error("Failed to check/create documentId index:", indexError);
+          // Don't throw - collection might still be usable
+        }
       }
 
       this.isInitialized = true;
@@ -160,10 +190,40 @@ class VectorService {
         };
       }
 
-      const searchResult = await this.client.search(
-        this.collectionName,
-        searchParams
-      );
+      let searchResult;
+      try {
+        searchResult = await this.client.search(
+          this.collectionName,
+          searchParams
+        );
+      } catch (searchError: any) {
+        // If filtering fails due to missing index, try without filter
+        if (searchError?.message?.includes('Index required') || 
+            searchError?.data?.status?.error?.includes('Index required')) {
+          logger.warn("DocumentId index missing, searching without document filter");
+          
+          // Remove filter and search all documents
+          const fallbackParams = {
+            vector: queryEmbedding,
+            limit: documentIds && documentIds.length > 0 ? limit * 3 : limit, // Get more results to filter manually
+            with_payload: true,
+          };
+          
+          searchResult = await this.client.search(
+            this.collectionName,
+            fallbackParams
+          );
+          
+          // Manually filter results by documentIds if provided
+          if (documentIds && documentIds.length > 0) {
+            searchResult = searchResult.filter(result => 
+              documentIds.includes(result.payload?.documentId as string)
+            ).slice(0, limit); // Limit to requested number
+          }
+        } else {
+          throw searchError;
+        }
+      }
 
       return searchResult.map((result) => ({
         id: result.id as string,
@@ -224,12 +284,40 @@ class VectorService {
         },
       });
       logger.info(`Deleted all chunks for document ${documentId}`);
-    } catch (error) {
-      logger.error(
-        `Failed to delete chunks for document ${documentId}:`,
-        error
-      );
-      throw error;
+    } catch (error: any) {
+      // If filtering fails due to missing index, use alternative approach
+      if (error?.message?.includes('Index required') || 
+          error?.data?.status?.error?.includes('Index required')) {
+        logger.warn("DocumentId index missing, using scroll and delete approach");
+        
+        try {
+          // Get all points and filter manually
+          const scrollResult = await this.client.scroll(this.collectionName, {
+            limit: 1000,
+            with_payload: true,
+          });
+          
+          const pointsToDelete = scrollResult.points
+            .filter(point => point.payload?.documentId === documentId)
+            .map(point => point.id);
+          
+          if (pointsToDelete.length > 0) {
+            await this.client.delete(this.collectionName, {
+              wait: true,
+              points: pointsToDelete,
+            });
+            logger.info(`Deleted ${pointsToDelete.length} chunks for document ${documentId} using fallback method`);
+          } else {
+            logger.info(`No chunks found for document ${documentId}`);
+          }
+        } catch (fallbackError) {
+          logger.error(`Fallback deletion method also failed for document ${documentId}:`, fallbackError);
+          throw fallbackError;
+        }
+      } else {
+        logger.error(`Failed to delete chunks for document ${documentId}:`, error);
+        throw error;
+      }
     }
   }
 
