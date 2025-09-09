@@ -164,6 +164,8 @@ export function useChat(id: string, userId?: string) {
     queryKey: [...queryKeys.chat(id), userId],
     queryFn: () => chatApi.getChat(id, userId),
     enabled: !!id && !!userId, // Require both id and userId
+    staleTime: 30000, // 30 seconds - reasonable caching
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
   });
 }
 
@@ -203,19 +205,19 @@ export function useSendMessage() {
     mutationFn: ({ message, userId, chatId, documentIds }: { message: string; userId: string; chatId?: string; documentIds?: string[] }) =>
       chatApi.sendMessage(message, userId, chatId, documentIds),
     onSuccess: (response, variables) => {
-      // Invalidate chat queries
-      queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+      const chatId = variables.chatId || response.data?.chat?.id;
       
-      // If we have a chatId, invalidate specific chat queries
-      if (variables.chatId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.chat(variables.chatId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.chatHistory(variables.chatId) });
-      }
-      
-      // If a new chat was created, invalidate the new chat
-      if (response.data?.chat?.id) {
-        const chatId = response.data.chat.id;
-        queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
+      if (chatId) {
+        // Invalidate the specific chat to trigger exactly one refetch
+        queryClient.invalidateQueries({ 
+          queryKey: [...queryKeys.chat(chatId), variables.userId],
+          exact: true 
+        });
+        
+        // Only invalidate chats list if a new chat was created
+        if (!variables.chatId && response.data?.chat?.id) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+        }
       }
     },
     onError: (error: ApiError) => {
