@@ -1,10 +1,10 @@
-import { ChatOpenAI } from '@langchain/openai';
-import { vectorService } from './vectorService';
-import { logger } from '@/utils/logger';
+import { ChatOpenAI } from "@langchain/openai";
+import { vectorService } from "./vectorService";
+import { logger } from "@/utils/logger";
 
 export interface ChatContext {
   documentIds?: string[];
-  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
 }
 
 export interface ChatResponse {
@@ -26,14 +26,14 @@ class ChatService {
   constructor() {
     this.llm = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: 'gpt-4',
+      modelName: "gpt-4o-mini",
       temperature: 0.7,
       maxTokens: 1000,
     });
 
     this.queryEnhancerLLM = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: 'gpt-3.5-turbo',
+      modelName: "gpt-4.1-nano",
       temperature: 0.3,
       maxTokens: 200,
     });
@@ -41,7 +41,7 @@ class ChatService {
 
   async enhanceQuery(
     query: string,
-    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+    conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>
   ): Promise<string> {
     try {
       let contextualPrompt = `Based on the conversation history and user query, enhance and rephrase the query to be more specific and searchable while maintaining the original intent.
@@ -51,9 +51,9 @@ User query: "${query}"`;
       if (conversationHistory && conversationHistory.length > 0) {
         const recentHistory = conversationHistory.slice(-6); // Last 3 exchanges
         const historyText = recentHistory
-          .map(msg => `${msg.role}: ${msg.content}`)
-          .join('\n');
-        
+          .map((msg) => `${msg.role}: ${msg.content}`)
+          .join("\n");
+
         contextualPrompt += `\n\nRecent conversation context:\n${historyText}`;
       }
 
@@ -61,7 +61,7 @@ User query: "${query}"`;
 
       const response = await this.queryEnhancerLLM.invoke([
         {
-          role: 'system',
+          role: "system",
           content: `You are a query enhancement specialist. Your job is to improve search queries by:
 1. Adding relevant context from conversation history
 2. Expanding abbreviations and acronyms
@@ -72,25 +72,22 @@ User query: "${query}"`;
 Return only the enhanced query without any explanations.`,
         },
         {
-          role: 'user',
+          role: "user",
           content: contextualPrompt,
         },
       ]);
 
       const enhancedQuery = (response.content as string).trim();
       logger.info(`Query enhanced: "${query}" -> "${enhancedQuery}"`);
-      
+
       return enhancedQuery;
     } catch (error) {
-      logger.error('Error enhancing query:', error);
+      logger.error("Error enhancing query:", error);
       return query; // Fallback to original query
     }
   }
 
-  async chat(
-    query: string,
-    context: ChatContext = {}
-  ): Promise<ChatResponse> {
+  async chat(query: string, context: ChatContext = {}): Promise<ChatResponse> {
     try {
       const { documentIds, conversationHistory } = context;
 
@@ -106,7 +103,8 @@ Return only the enhanced query without any explanations.`,
 
       if (retrievedChunks.length === 0) {
         return {
-          content: "I couldn't find any relevant information in the uploaded documents to answer your question. Please make sure your query is related to the content you've shared, or try rephrasing your question.",
+          content:
+            "I couldn't find any relevant information in the uploaded documents to answer your question. Please make sure your query is related to the content you've shared, or try rephrasing your question.",
           sources: [],
           retrievedChunks: [],
           enhancedQuery,
@@ -115,11 +113,9 @@ Return only the enhanced query without any explanations.`,
 
       // Step 3: Prepare context for LLM
       const relevantContext = retrievedChunks
-        .filter(chunk => chunk.score > 0.1) // Lower threshold for better recall
-        .map((chunk, index) => 
-          `[Source ${index + 1}]: ${chunk.content}`
-        )
-        .join('\n\n');
+        .filter((chunk) => chunk.score > 0.1) // Lower threshold for better recall
+        .map((chunk, index) => `[Source ${index + 1}]: ${chunk.content}`)
+        .join("\n\n");
 
       // Step 4: Generate response using LLM
       const systemPrompt = `You are a helpful AI assistant that answers questions based on the provided context from documents. 
@@ -136,12 +132,15 @@ Guidelines:
 Context from documents:
 ${relevantContext}`;
 
-      let conversationContext = '';
+      let conversationContext = "";
       if (conversationHistory && conversationHistory.length > 0) {
         const recentHistory = conversationHistory.slice(-4); // Last 2 exchanges
         conversationContext = recentHistory
-          .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
-          .join('\n');
+          .map(
+            (msg) =>
+              `${msg.role === "user" ? "Human" : "Assistant"}: ${msg.content}`
+          )
+          .join("\n");
         conversationContext = `\n\nRecent conversation:\n${conversationContext}\n`;
       }
 
@@ -150,29 +149,29 @@ ${relevantContext}`;
 Please answer this question based on the provided context.`;
 
       const response = await this.llm.invoke([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ]);
 
       // Extract unique source document IDs
       const sources = Array.from(
-        new Set(retrievedChunks.map(chunk => chunk.documentId))
+        new Set(retrievedChunks.map((chunk) => chunk.documentId))
       );
 
       return {
         content: response.content as string,
         sources,
-        retrievedChunks: retrievedChunks.map(chunk => ({
+        retrievedChunks: retrievedChunks.map((chunk) => ({
           documentId: chunk.documentId,
           chunkId: chunk.id,
-          content: chunk.content.substring(0, 200) + '...', // Truncate for response
+          content: chunk.content.substring(0, 200) + "...", // Truncate for response
           score: chunk.score,
         })),
         enhancedQuery,
       };
     } catch (error) {
-      logger.error('Error in chat service:', error);
-      throw new Error('Failed to generate response. Please try again.');
+      logger.error("Error in chat service:", error);
+      throw new Error("Failed to generate response. Please try again.");
     }
   }
 
@@ -180,19 +179,19 @@ Please answer this question based on the provided context.`;
     try {
       const response = await this.queryEnhancerLLM.invoke([
         {
-          role: 'system',
+          role: "system",
           content: `Generate a concise, descriptive title (max 50 characters) for a chat conversation based on the first user message. The title should capture the main topic or question.`,
         },
         {
-          role: 'user',
+          role: "user",
           content: `First message: "${firstMessage}"\n\nTitle:`,
         },
       ]);
 
-      return (response.content as string).trim().replace(/^["']|["']$/g, '');
+      return (response.content as string).trim().replace(/^["']|["']$/g, "");
     } catch (error) {
-      logger.error('Error generating chat title:', error);
-      return firstMessage.substring(0, 50).trim() + '...';
+      logger.error("Error generating chat title:", error);
+      return firstMessage.substring(0, 50).trim() + "...";
     }
   }
 }

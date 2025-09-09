@@ -1,33 +1,33 @@
-import { Request, Response } from 'express';
-import { Chat } from '@/models/Chat';
-import { Document } from '@/models/Document';
-import { chatService } from '@/services/chatService';
-import { logger } from '@/utils/logger';
+import { Request, Response } from "express";
+import { Chat } from "@/models/Chat";
+import { Document } from "@/models/Document";
+import { chatService } from "@/services/chatService";
+import { logger } from "@/utils/logger";
 
 // Create new chat
 export const createChat = async (req: Request, res: Response) => {
   try {
     const { title, documentIds, userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({
         success: false,
-        message: 'User ID is required',
+        message: "User ID is required",
       });
     }
-    
+
     // Validate document IDs if provided
     if (documentIds && documentIds.length > 0) {
       const existingDocs = await Document.find({
         _id: { $in: documentIds },
         userId,
-        status: 'completed'
+        status: "completed",
       });
-      
+
       if (existingDocs.length !== documentIds.length) {
         return res.status(400).json({
           success: false,
-          message: 'Some documents not found or not completed processing',
+          message: "Some documents not found or not completed processing",
         });
       }
     }
@@ -43,14 +43,14 @@ export const createChat = async (req: Request, res: Response) => {
 
     res.status(201).json({
       success: true,
-      message: 'Chat created successfully',
+      message: "Chat created successfully",
       data: chat,
     });
   } catch (error) {
-    logger.error('Error creating chat:', error);
+    logger.error("Error creating chat:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create chat',
+      message: "Failed to create chat",
     });
   }
 };
@@ -59,14 +59,14 @@ export const createChat = async (req: Request, res: Response) => {
 export const sendMessage = async (req: Request, res: Response) => {
   try {
     const { message, chatId, documentIds, userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({
         success: false,
-        message: 'User ID is required',
+        message: "User ID is required",
       });
     }
-    
+
     let chat;
     let isNewChat = false;
 
@@ -76,20 +76,23 @@ export const sendMessage = async (req: Request, res: Response) => {
       if (!chat) {
         return res.status(404).json({
           success: false,
-          message: 'Chat not found',
+          message: "Chat not found",
         });
       }
     } else {
       // Create new chat
       const title = await chatService.generateTitle(message);
-      
+
       // If no documentIds provided, use all completed documents for this user
       let defaultDocumentIds = documentIds || [];
       if (!documentIds || documentIds.length === 0) {
-        const allDocs = await Document.find({ userId, status: 'completed' }).select('_id');
-        defaultDocumentIds = allDocs.map(doc => doc._id.toString());
+        const allDocs = await Document.find({
+          userId,
+          status: "completed",
+        }).select("_id");
+        defaultDocumentIds = allDocs.map((doc) => doc._id.toString());
       }
-      
+
       chat = new Chat({
         userId,
         title,
@@ -101,32 +104,42 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     // Validate document IDs - use all completed docs if none specified
     let targetDocumentIds = documentIds || chat.documentIds;
-    
+
     // Always refresh document IDs to get current user's documents
-    const allUserDocs = await Document.find({ userId, status: 'completed' }).select('_id');
-    const allUserDocIds = allUserDocs.map(doc => doc._id.toString());
-    
-    if (!targetDocumentIds || targetDocumentIds.length === 0 || allUserDocIds.length === 0) {
+    const allUserDocs = await Document.find({
+      userId,
+      status: "completed",
+    }).select("_id");
+    const allUserDocIds = allUserDocs.map((doc) => doc._id.toString());
+
+    if (
+      !targetDocumentIds ||
+      targetDocumentIds.length === 0 ||
+      allUserDocIds.length === 0
+    ) {
       targetDocumentIds = allUserDocIds;
     } else {
       // Filter target IDs to only include existing user documents
-      targetDocumentIds = targetDocumentIds.filter((id: string) => allUserDocIds.includes(id));
+      targetDocumentIds = targetDocumentIds.filter((id: string) =>
+        allUserDocIds.includes(id)
+      );
       // If none of the target IDs exist, use all user docs
       if (targetDocumentIds.length === 0) {
         targetDocumentIds = allUserDocIds;
       }
     }
-    
+
     // Check if user has any completed documents at all
     if (targetDocumentIds.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No completed documents found. Please upload and process some documents first.',
+        message:
+          "No completed documents found. Please upload and process some documents first.",
       });
     }
 
     // Get conversation history for context
-    const conversationHistory = chat.messages.slice(-10).map(msg => ({
+    const conversationHistory = chat.messages.slice(-10).map((msg) => ({
       role: msg.role,
       content: msg.content,
     }));
@@ -139,14 +152,14 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     // Add user message
     chat.messages.push({
-      role: 'user',
+      role: "user",
       content: message,
       timestamp: new Date(),
     });
 
     // Add assistant response
     chat.messages.push({
-      role: 'assistant',
+      role: "assistant",
       content: response.content,
       timestamp: new Date(),
       metadata: {
@@ -157,7 +170,11 @@ export const sendMessage = async (req: Request, res: Response) => {
     });
 
     // Update document IDs if provided and different
-    if (documentIds && JSON.stringify(documentIds.sort()) !== JSON.stringify(chat.documentIds.sort())) {
+    if (
+      documentIds &&
+      JSON.stringify(documentIds.sort()) !==
+        JSON.stringify(chat.documentIds.sort())
+    ) {
       chat.documentIds = documentIds;
     }
 
@@ -165,24 +182,26 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: isNewChat ? 'Chat created and message sent' : 'Message sent successfully',
+      message: isNewChat
+        ? "Chat created and message sent"
+        : "Message sent successfully",
       data: {
         chatId: chat._id,
         isNewChat,
         userMessage: {
-          role: 'user',
+          role: "user",
           content: message,
           timestamp: chat.messages[chat.messages.length - 2].timestamp,
         },
         assistantMessage: {
-          role: 'assistant',
+          role: "assistant",
           content: response.content,
           timestamp: chat.messages[chat.messages.length - 1].timestamp,
-          metadata: {
-            sources: response.sources,
-            retrievedChunks: response.retrievedChunks,
-            enhancedQuery: response.enhancedQuery,
-          },
+          // metadata: {
+          //   sources: response.sources,
+          //   retrievedChunks: response.retrievedChunks,
+          //   enhancedQuery: response.enhancedQuery,
+          // },
         },
         chat: {
           id: chat._id,
@@ -192,11 +211,11 @@ export const sendMessage = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error('Error sending message:', error);
+    logger.error("Error sending message:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to send message',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      message: "Failed to send message",
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 };
@@ -206,38 +225,45 @@ export const getChats = async (req: Request, res: Response) => {
   try {
     // Use validated query parameters with defaults
     const validatedQuery = (req as any).validatedQuery || {};
-    const { page = 1, limit = 10, sort = '-createdAt', userId } = validatedQuery;
-    
+    const {
+      page = 1,
+      limit = 10,
+      sort = "-createdAt",
+      userId,
+    } = validatedQuery;
+
     const filter: any = {};
     if (userId) filter.userId = userId;
-    
+
     const skip = (page - 1) * limit;
-    
+
     const [chats, total] = await Promise.all([
       Chat.find(filter)
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .select('title documentIds createdAt updatedAt userId')
-        .populate('documentIds', 'title type status'),
+        .select("title documentIds createdAt updatedAt userId")
+        .populate("documentIds", "title type status"),
       Chat.countDocuments(filter),
     ]);
 
     // Add message count and last message info
     const chatsWithStats = await Promise.all(
       chats.map(async (chat) => {
-        const chatDoc = await Chat.findById(chat._id).select('messages');
+        const chatDoc = await Chat.findById(chat._id).select("messages");
         const messageCount = chatDoc?.messages.length || 0;
         const lastMessage = chatDoc?.messages[messageCount - 1];
-        
+
         return {
           ...chat.toJSON(),
           messageCount,
-          lastMessage: lastMessage ? {
-            role: lastMessage.role,
-            content: lastMessage.content.substring(0, 100) + '...',
-            timestamp: lastMessage.timestamp,
-          } : null,
+          lastMessage: lastMessage
+            ? {
+                role: lastMessage.role,
+                content: lastMessage.content.substring(0, 100) + "...",
+                timestamp: lastMessage.timestamp,
+              }
+            : null,
         };
       })
     );
@@ -254,10 +280,10 @@ export const getChats = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error('Error fetching chats:', error);
+    logger.error("Error fetching chats:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch chats',
+      message: "Failed to fetch chats",
     });
   }
 };
@@ -267,16 +293,19 @@ export const getChat = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { userId } = req.query;
-    
+
     const filter: any = { _id: id };
     if (userId) filter.userId = userId;
-    
-    const chat = await Chat.findOne(filter).populate('documentIds', 'title type status summary');
-    
+
+    const chat = await Chat.findOne(filter).populate(
+      "documentIds",
+      "title type status summary"
+    );
+
     if (!chat) {
       return res.status(404).json({
         success: false,
-        message: 'Chat not found',
+        message: "Chat not found",
       });
     }
 
@@ -285,10 +314,10 @@ export const getChat = async (req: Request, res: Response) => {
       data: chat,
     });
   } catch (error) {
-    logger.error('Error fetching chat:', error);
+    logger.error("Error fetching chat:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch chat',
+      message: "Failed to fetch chat",
     });
   }
 };
@@ -298,16 +327,16 @@ export const getChatHistory = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { userId } = req.query;
-    
+
     const filter: any = { _id: id };
     if (userId) filter.userId = userId;
-    
-    const chat = await Chat.findOne(filter).select('messages');
-    
+
+    const chat = await Chat.findOne(filter).select("messages");
+
     if (!chat) {
       return res.status(404).json({
         success: false,
-        message: 'Chat not found',
+        message: "Chat not found",
       });
     }
 
@@ -318,10 +347,10 @@ export const getChatHistory = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error('Error fetching chat history:', error);
+    logger.error("Error fetching chat history:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch chat history',
+      message: "Failed to fetch chat history",
     });
   }
 };
@@ -331,16 +360,16 @@ export const deleteChat = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { userId } = req.query;
-    
+
     const filter: any = { _id: id };
     if (userId) filter.userId = userId;
-    
+
     const chat = await Chat.findOne(filter);
-    
+
     if (!chat) {
       return res.status(404).json({
         success: false,
-        message: 'Chat not found',
+        message: "Chat not found",
       });
     }
 
@@ -348,13 +377,13 @@ export const deleteChat = async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: 'Chat deleted successfully',
+      message: "Chat deleted successfully",
     });
   } catch (error) {
-    logger.error('Error deleting chat:', error);
+    logger.error("Error deleting chat:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete chat',
+      message: "Failed to delete chat",
     });
   }
 };
