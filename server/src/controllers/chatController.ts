@@ -212,11 +212,23 @@ export const sendMessage = async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error("Error sending message:", error);
-    res.status(500).json({
+    const isProd = process.env.NODE_ENV === "production";
+    const err = error as any;
+    const responsePayload: any = {
       success: false,
       message: "Failed to send message",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
+      error: err?.message || "Unknown error",
+    };
+    // Expose more diagnostics in non-production to aid debugging
+    if (!isProd) {
+      responsePayload.details = {
+        name: err?.name,
+        code: err?.code,
+        cause: err?.cause,
+        stack: err?.stack,
+      };
+    }
+    res.status(500).json(responsePayload);
   }
 };
 

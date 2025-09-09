@@ -91,6 +91,12 @@ Return only the enhanced query without any explanations.`,
     try {
       const { documentIds, conversationHistory } = context;
 
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error(
+          "Missing OPENAI_API_KEY. Set the environment variable to enable LLM and embeddings."
+        );
+      }
+
       // Step 1: Enhance the query
       const enhancedQuery = await this.enhanceQuery(query, conversationHistory);
 
@@ -171,7 +177,15 @@ Please answer this question based on the provided context.`;
       };
     } catch (error) {
       logger.error("Error in chat service:", error);
-      throw new Error("Failed to generate response. Please try again.");
+      const err = error as any;
+      const baseMessage = "Failed to generate response";
+      const reason =
+        err?.message ||
+        err?.response?.data?.error ||
+        err?.code ||
+        "Unknown error";
+      // Include a concise, user-safe reason while preserving full details in logs
+      throw new Error(`${baseMessage}. Reason: ${String(reason)}`);
     }
   }
 
