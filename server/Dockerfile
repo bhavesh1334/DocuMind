@@ -17,14 +17,8 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY src/ ./src/
 
-# Build the application with path resolution
+# Build the application with path resolution (tsc-alias is already in devDependencies)
 RUN pnpm run build
-
-# Install tsc-alias to resolve path mappings
-RUN pnpm add tsc-alias --save-dev
-
-# Resolve TypeScript path mappings in compiled JS
-RUN npx tsc-alias -p tsconfig.json
 
 # Production stage
 FROM node:18-alpine AS production
