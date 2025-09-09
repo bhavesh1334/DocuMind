@@ -266,7 +266,6 @@ export const sendMessage = async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error("Error sending message:", error);
-    const isProd = process.env.NODE_ENV === "production";
     const err = error as any;
     
     // Determine appropriate status code and message
@@ -292,22 +291,39 @@ export const sendMessage = async (req: Request, res: Response) => {
       errorCode = "BAD_REQUEST";
     }
     
+    // Create comprehensive error response with full details
     const responsePayload: any = {
       success: false,
       message: userMessage,
       error: err?.message || "Unknown error",
       code: errorCode,
-    };
-    
-    // Expose more diagnostics in non-production to aid debugging
-    if (!isProd) {
-      responsePayload.details = {
+      timestamp: new Date().toISOString(),
+      // Always include full error details for debugging
+      details: {
         name: err?.name,
+        message: err?.message,
         code: err?.code,
+        status: err?.status,
+        statusCode: err?.statusCode,
         cause: err?.cause,
-        stack: err?.stack?.split('\n').slice(0, 10).join('\n'), // Limit stack trace
-      };
-    }
+        stack: err?.stack, // Full stack trace
+        // Include any additional error properties
+        ...Object.getOwnPropertyNames(err).reduce((acc, key) => {
+          if (!['name', 'message', 'stack'].includes(key)) {
+            acc[key] = err[key];
+          }
+          return acc;
+        }, {} as any),
+      },
+      // Include request context for debugging
+      context: {
+        method: req.method,
+        url: req.url,
+        userAgent: req.get('User-Agent'),
+        contentType: req.get('Content-Type'),
+        bodySize: JSON.stringify(req.body).length,
+      }
+    };
     
     res.status(statusCode).json(responsePayload);
   }
