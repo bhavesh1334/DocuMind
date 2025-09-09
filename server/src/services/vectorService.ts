@@ -9,11 +9,15 @@ class VectorService {
   private isInitialized: boolean = false;
 
   constructor() {
-    this.client = new QdrantClient({
-      apiKey: process.env.QDRANT_API_KEY,
-      host: process.env.QDRANT_HOST || "localhost",
-      port: parseInt(process.env.QDRANT_PORT || "6333"),
-    });
+    const qdrantUrl = process.env.QDRANT_URL;
+    console.log("qdrantUrl", qdrantUrl);
+    this.client = qdrantUrl
+      ? new QdrantClient({ url: qdrantUrl, apiKey: process.env.QDRANT_API_KEY })
+      : new QdrantClient({
+          host: process.env.QDRANT_HOST || "localhost",
+          port: parseInt(process.env.QDRANT_PORT || "6333"),
+          apiKey: process.env.QDRANT_API_KEY,
+        });
 
     this.embeddings = new OpenAIEmbeddings({
       openAIApiKey: process.env.OPENAI_API_KEY,
