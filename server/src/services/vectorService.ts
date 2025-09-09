@@ -10,6 +10,7 @@ class VectorService {
 
   constructor() {
     this.client = new QdrantClient({
+      apiKey: process.env.QDRANT_API_KEY,
       host: process.env.QDRANT_HOST || "localhost",
       port: parseInt(process.env.QDRANT_PORT || "6333"),
     });
