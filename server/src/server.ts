@@ -43,10 +43,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(
   cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? ["https://yourdomain.com"]
-        : ["http://localhost:8080", "http://localhost:5173"],
+    origin: '*',
     credentials: true,
   })
 );
