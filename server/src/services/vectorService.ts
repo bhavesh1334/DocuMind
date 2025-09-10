@@ -55,13 +55,14 @@ class VectorService {
 
     this.collectionName = this.config.collectionName!;
     
-    // Initialize embeddings with enhanced configuration
+    // Initialize embeddings with enhanced configuration for speed
     this.embeddings = new OpenAIEmbeddings({
       apiKey: process.env.OPENAI_API_KEY,
       model: this.config.embeddingModel!,
-      timeout: 30000,
-      maxRetries: 3,
-      maxConcurrency: 5, // Improved concurrency for batch operations
+      timeout: 15000, // Reduced timeout for faster failures
+      maxRetries: 2, // Reduced retries for speed
+      maxConcurrency: 10, // Increased concurrency for better performance
+      batchSize: 512, // Batch embeddings for efficiency
     });
 
     // Initialize text splitter for better chunking
@@ -248,94 +249,57 @@ class VectorService {
         documentIds: [...new Set(chunks.map(c => c.documentId))]
       });
 
-      // Process in batches to avoid memory issues and rate limits
-      const batchSize = 50;
-      const batches = [];
+      // Optimized batch processing for speed
+      const batchSize = 100; // Increased batch size for efficiency
+      const qdrantClient = (this.vectorStore as any).client;
       
-      for (let i = 0; i < documents.length; i += batchSize) {
-        batches.push(documents.slice(i, i + batchSize));
-      }
-
-      logger.info(`Processing ${documents.length} chunks in ${batches.length} batches`);
-
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        const batchIds = batch.map(doc => doc.metadata.id);
+      logger.info(`Processing ${documents.length} chunks in optimized batches of ${batchSize}`);
+      
+      // Process all embeddings in parallel for maximum speed
+      const allTexts = documents.map(doc => doc.pageContent);
+      logger.info('Generating embeddings in parallel...');
+      const allEmbeddings = await this.embeddings.embedDocuments(allTexts);
+      logger.info(`Generated ${allEmbeddings.length} embeddings`);
+      
+      // Create all points at once
+      const allPoints = documents.map((doc, index) => ({
+        id: doc.metadata.id,
+        vector: allEmbeddings[index],
+        payload: {
+          content: doc.pageContent,
+          ...doc.metadata,
+        },
+      }));
+      
+      // Insert in optimized batches
+      for (let i = 0; i < allPoints.length; i += batchSize) {
+        const batch = allPoints.slice(i, i + batchSize);
+        const batchNum = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(allPoints.length / batchSize);
         
-        logger.info(`Processing batch ${i + 1}: ${batch.length} documents with IDs: ${batchIds.slice(0, 3).join(', ')}${batchIds.length > 3 ? '...' : ''}`);
+        logger.info(`Inserting batch ${batchNum}/${totalBatches} (${batch.length} points)`);
         
         try {
-          // Use direct Qdrant client for reliable storage
-          const qdrantClient = (this.vectorStore as any).client;
-          const points = [];
-          
-          for (const doc of batch) {
-            const embedding = await this.embeddings.embedQuery(doc.pageContent);
-            points.push({
-              id: doc.metadata.id,
-              vector: embedding,
-              payload: {
-                content: doc.pageContent,
-                ...doc.metadata,
-              },
-            });
-          }
-          
           await qdrantClient.upsert(this.collectionName, {
             wait: true,
-            points,
+            points: batch,
           });
           
-          logger.info(`Successfully processed batch ${i + 1}/${batches.length} (${batch.length} chunks)`);
-          
-          // Verify the documents were actually added
-          const testDocId = batch[0].metadata.documentId;
-          const verifyResult = await qdrantClient.scroll(this.collectionName, {
-            limit: 1,
-            with_payload: true,
-            filter: {
-              must: [{ key: "documentId", match: { value: testDocId } }]
-            }
-          });
-          logger.info(`Verification: Found ${verifyResult.points.length} documents for documentId ${testDocId}`);
-          
+          logger.info(`Successfully inserted batch ${batchNum}/${totalBatches}`);
         } catch (batchError: any) {
-          logger.error(`Failed to process batch ${i + 1}:`, {
-            message: batchError.message,
-            stack: batchError.stack,
-            batchSize: batch.length,
-            sampleDoc: {
-              content: batch[0]?.pageContent?.substring(0, 100),
-              metadata: batch[0]?.metadata
-            }
-          });
+          logger.error(`Failed to insert batch ${batchNum}:`, batchError.message);
           
-          // Retry individual documents in the failed batch using direct Qdrant client
-          const qdrantClient = (this.vectorStore as any).client;
-          for (const doc of batch) {
+          // Retry individual points in failed batch
+          for (const point of batch) {
             try {
-              const embedding = await this.embeddings.embedQuery(doc.pageContent);
               await qdrantClient.upsert(this.collectionName, {
                 wait: true,
-                points: [{
-                  id: doc.metadata.id,
-                  vector: embedding,
-                  payload: {
-                    content: doc.pageContent,
-                    ...doc.metadata,
-                  },
-                }],
+                points: [point],
               });
-              logger.info(`Successfully added individual document ${doc.metadata.id}`);
-            } catch (docError: any) {
-              logger.error(`Failed to add individual document ${doc.metadata.id}:`, docError.message);
+            } catch (pointError: any) {
+              logger.error(`Failed to insert point ${point.id}:`, pointError.message);
             }
           }
-        }
-        
-        // Small delay between batches to respect rate limits
-        if (i < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
 

@@ -32,8 +32,8 @@ class DocumentProcessor {
 
   constructor() {
     this.textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkSize: 800, // Reduced for faster processing
+      chunkOverlap: 150, // Reduced overlap
       separators: ['\n\n', '\n', '. ', '! ', '? ', ' ', ''],
     });
 
@@ -41,6 +41,8 @@ class DocumentProcessor {
       openAIApiKey: process.env.OPENAI_API_KEY,
       modelName: 'gpt-3.5-turbo',
       temperature: 0.3,
+      timeout: 15000, // Faster timeout
+      maxRetries: 1, // Fewer retries for speed
     });
   }
 
@@ -283,19 +285,17 @@ class DocumentProcessor {
 
   private async generateSummary(content: string): Promise<string> {
     try {
-      // Limit content length for summary generation
-      const limitedContent = content.substring(0, 4000);
+      // Limit content length for faster processing
+      const limitedContent = content.substring(0, 2000); // Reduced from 4000
       
       const response = await this.llm.invoke([
         {
           role: 'system',
-          content: `You are a helpful assistant that creates concise summaries. 
-                   Create a summary that captures the main points and key information.
-                   Keep it under 300 words and make it informative.`,
+          content: `Create a concise 2-3 sentence summary capturing the main points. Keep it under 150 words.`,
         },
         {
           role: 'user',
-          content: `Please summarize the following text:\n\n${limitedContent}`,
+          content: `Summarize: ${limitedContent}`,
         },
       ]);
 
@@ -303,7 +303,7 @@ class DocumentProcessor {
     } catch (error) {
       logger.error('Error generating summary:', error);
       // Fallback to simple truncation if LLM fails
-      return content.substring(0, 300) + '...';
+      return content.substring(0, 200) + '...';
     }
   }
 

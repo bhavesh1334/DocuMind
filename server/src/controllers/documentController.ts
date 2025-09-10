@@ -33,6 +33,33 @@ export const uploadFiles = async (req: Request, res: Response) => {
     try {
       logger.info(`Processing file: ${file.originalname} for user: ${userId}`);
       
+      // Check for duplicate files based on name and size
+      const existingDocument = await Document.findOne({
+        userId,
+        type: 'file',
+        'metadata.originalName': file.originalname,
+        'metadata.fileSize': file.size
+      });
+      
+      if (existingDocument) {
+        logger.info(`File ${file.originalname} already exists, skipping`);
+        results.push({
+          id: existingDocument._id,
+          title: existingDocument.title,
+          status: 'duplicate',
+          originalName: file.originalname,
+          error: 'File already exists',
+        });
+        
+        // Clean up uploaded duplicate file
+        try {
+          await fs.unlink(file.path);
+        } catch (unlinkError) {
+          logger.error(`Failed to delete duplicate file ${file.path}:`, unlinkError);
+        }
+        continue;
+      }
+      
       // Create document record
       const document = new Document({
         userId,
@@ -97,6 +124,27 @@ export const addUrl = async (req: Request, res: Response) => {
       });
     }
     
+    // Check if URL already exists for this user to prevent duplicates
+    const existingDocument = await Document.findOne({ 
+      userId, 
+      source: url,
+      $or: [{ type: 'url' }, { type: 'youtube' }]
+    });
+    
+    if (existingDocument) {
+      return res.status(409).json({
+        success: false,
+        message: 'This URL has already been added',
+        data: {
+          id: existingDocument._id,
+          title: existingDocument.title,
+          type: existingDocument.type,
+          status: existingDocument.status,
+          url: existingDocument.source,
+        },
+      });
+    }
+    
     // Determine if it's a YouTube URL
     const isYoutube = isYouTubeUrl(url);
     const documentType = isYoutube ? 'youtube' : 'url';
@@ -150,6 +198,13 @@ export const addText = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         message: 'User ID is required',
+      });
+    }
+    
+    if (!content || content.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Content must be at least 10 characters long',
       });
     }
     
