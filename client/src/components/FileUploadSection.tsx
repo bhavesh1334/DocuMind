@@ -39,6 +39,7 @@ interface FileUploadSectionProps {
 export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectionProps) => {
   const [urlInput, setUrlInput] = useState('');
   const [textInput, setTextInput] = useState('');
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -56,7 +57,7 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
   }, [documentsResponse]);
 
   const getFileIcon = (document: Document) => {
-    if (document.type === 'url') return <Link className="h-4 w-4" />;
+    if (document.type === 'url'|| document.type === 'youtube') return <Link className="h-4 w-4" />;
     if (document.type === 'text') return <Type className="h-4 w-4" />;
     
     const mimeType = document.metadata?.mimeType?.toLowerCase() || document.fileType?.toLowerCase();
@@ -142,12 +143,28 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
     }
 
     uploadFiles.mutate({ files, userId: user.id }, {
-      onSuccess: () => {
+      onSuccess: (response) => {
         // Clear the file input
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
         refetch();
+        
+        const successCount = response?.data?.filter((item: any) => item.status === 'completed').length || 0;
+        const duplicateCount = response?.data?.filter((item: any) => item.status === 'duplicate').length || 0;
+        
+        if (successCount > 0) {
+          toast({
+            title: "Files Uploaded",
+            description: `${successCount} file(s) processed successfully${duplicateCount > 0 ? `, ${duplicateCount} duplicate(s) skipped` : ''}`,
+          });
+        } else if (duplicateCount > 0) {
+          toast({
+            title: "Duplicate Files",
+            description: `${duplicateCount} file(s) already exist in your library`,
+            variant: "destructive",
+          });
+        }
       },
     });
   };
@@ -172,6 +189,19 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
       onSuccess: () => {
         setUrlInput('');
         refetch();
+        toast({
+          title: "URL Added",
+          description: "URL has been processed and added to your library",
+        });
+      },
+      onError: (error: any) => {
+        if (error?.response?.status === 409) {
+          toast({
+            title: "Duplicate URL",
+            description: "This URL has already been added to your library",
+            variant: "destructive",
+          });
+        }
       },
     });
   };
@@ -194,12 +224,25 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
       onSuccess: () => {
         setTextInput('');
         refetch();
+        toast({
+          title: "Text Added",
+          description: "Text has been processed and added to your library",
+        });
       },
     });
   };
 
   const handleDeleteDocument = (id: string) => {
-    deleteDocument.mutate({ id, userId: user.id });
+    setDeletingDocumentId(id);
+    deleteDocument.mutate({ id, userId: user.id }, {
+      onSuccess: () => {
+        setDeletingDocumentId(null);
+        refetch();
+      },
+      onError: () => {
+        setDeletingDocumentId(null);
+      }
+    });
   };
 
   // ReactDropzone configuration
@@ -406,6 +449,7 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
                               <p className="text-xs sm:text-sm font-medium text-foreground truncate">
                                 {document.title}
                               </p>
+                              {getStatusBadge(document.status)}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                               {(document.metadata?.fileSize || document.metadata?.size) && (
@@ -423,24 +467,51 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
                                   {document.metadata.originalName}
                                 </p>
                               )}
+                              {document.status === 'processing' && (
+                                <p className="text-xs text-yellow-600">
+                                  Processing...
+                                </p>
+                              )}
+                              {document.status === 'failed' && document.error && (
+                                <p className="text-xs text-red-600 truncate" title={document.error}>
+                                  Error: {document.error}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
 
                    
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteDocument(document.id || document._id!)}
-                          disabled={deleteDocument.isPending}
-                          className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 p-0 hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                        >
-                          {deleteDocument.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <div className="flex items-center gap-2">
+                          {/* {document.status === 'completed' && (
+                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
+                              Ready
+                            </Badge>
                           )}
-                        </Button>
+                          {document.status === 'processing' && (
+                            <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-200">
+                              Processing
+                            </Badge>
+                          )}
+                          {document.status === 'failed' && (
+                            <Badge variant="destructive" className="text-xs">
+                              Failed
+                            </Badge>
+                          )} */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteDocument(document.id || document._id!)}
+                            disabled={deletingDocumentId === (document.id || document._id) || document.status === 'processing'}
+                            className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 p-0 hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          >
+                            {deletingDocumentId === (document.id || document._id) ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
