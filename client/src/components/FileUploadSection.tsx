@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, Link, Type, Trash2, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertTriangle, LoaderCircle } from 'lucide-react';
+import { Upload, File, Link, Type, Trash2, FileText, Image, FileSpreadsheet, Loader2, CheckCircle, AlertTriangle, LoaderCircle, Youtube, SquarePlay } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,7 +57,8 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
   }, [documentsResponse]);
 
   const getFileIcon = (document: Document) => {
-    if (document.type === 'url'|| document.type === 'youtube') return <Link className="h-4 w-4" />;
+    if (document.type === 'youtube') return<SquarePlay className="h-4 w-4" />
+    if (document.type === 'url') return <Link className="h-4 w-4" />;
     if (document.type === 'text') return <Type className="h-4 w-4" />;
     
     const mimeType = document.metadata?.mimeType?.toLowerCase() || document.fileType?.toLowerCase();
@@ -447,11 +448,19 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-xs sm:text-sm font-medium text-foreground truncate">
-                                {document.title}
+                                {document.type === 'youtube' && document.metadata?.author 
+                                  ? `${document.title} - ${document.metadata.author}`
+                                  : document.title
+                                }
                               </p>
                               {getStatusBadge(document.status)}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
+                              {document.type === 'youtube' && document.metadata?.durationFormatted && (
+                                <p className="text-xs text-muted-foreground">
+                                  {document.metadata.durationFormatted}
+                                </p>
+                              )}
                               {(document.metadata?.fileSize || document.metadata?.size) && (
                                 <p className="text-xs text-muted-foreground">
                                   {formatFileSize(document.metadata.fileSize || document.metadata.size!)}

@@ -76,7 +76,7 @@ export const Landing = ({ onUserAuthenticated }: LandingProps) => {
             Welcome to DocuMind
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Your intelligent document assistant powered by RAG technology
+            Upload, analyze, and chat with your documents using AI
           </p>
         </div>
 
@@ -170,6 +170,10 @@ export const Landing = ({ onUserAuthenticated }: LandingProps) => {
             </Tabs>
           </CardContent>
         </Card>
+        
+        <footer className="w-full py-4 text-center text-xs text-white/60 mt-8">
+          Built with ❤️ by <a href="https://bhavesh.work" target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white transition-colors hover:underline underline-offset-4 italic">Bhavesh Chandrakar</a>
+        </footer>
       </div>
     </div>
   );

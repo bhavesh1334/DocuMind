@@ -38,6 +38,7 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
+  const [pendingUserMessage, setPendingUserMessage] = useState<DisplayMessage | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -48,7 +49,7 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
   const { sendMessage, isSending } = useChatOperations();
   const { data: documentsResponse } = useDocuments({ limit: 50, userId: user.id });
 
-  const currentChat = currentChatResponse?.data;
+  const currentChat = useMemo(() => currentChatResponse?.data, [currentChatResponse])
   
   // Check if user has any completed documents
   const documents = documentsResponse?.data?.documents || [];
@@ -64,30 +65,32 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
     createdAt: new Date().toISOString(),
   }), [hasCompletedDocuments]);
 
-  // Restore currentChatId from localStorage on mount - add user.id dependency
+  // Combined initialization and localStorage management
   useEffect(() => {
+    // Restore currentChatId from localStorage on mount
     const savedChatId = localStorage.getItem(`currentChatId_${user.id}`);
     if (savedChatId) {
       setCurrentChatId(savedChatId);
     }
     setIsInitialized(true);
-  }, [user.id]);
 
-  // Listen for user data deletion to immediately reset chat state - memoized handler
-  const handleUserDataDeleted = useCallback((e: CustomEvent) => {
-    if (e.detail?.userId === user.id) {
-      // User data was deleted, immediately reset chat state
-      setCurrentChatId(null);
-      setMessages([welcomeMessage]);
-    }
+    // Listen for user data deletion
+    const handleUserDataDeleted = (e: CustomEvent) => {
+      if (e.detail?.userId === user.id) {
+        setCurrentChatId(null);
+        setMessages([welcomeMessage]);
+        setPendingUserMessage(null);
+      }
+    };
+
+    window.addEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+    
+    return () => {
+      window.removeEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
+    };
   }, [user.id, welcomeMessage]);
 
-  useEffect(() => {
-    window.addEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
-    return () => window.removeEventListener('userDataDeleted', handleUserDataDeleted as EventListener);
-  }, [handleUserDataDeleted]);
-
-  // Save currentChatId to localStorage whenever it changes - optimized with user.id dependency
+  // Save currentChatId to localStorage whenever it changes
   useEffect(() => {
     if (isInitialized) {
       if (currentChatId) {
@@ -133,15 +136,14 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
     scrollTimeoutRef.current = setTimeout(() => {
       setIsUserScrolling(false);
       setShouldAutoScroll(isNearBottom());
-    }, 150);
+    }, 250);
   }, [isNearBottom]);
 
-  // Update messages when chat data changes
+  // Update messages when chat data changes - simplified logic
   useEffect(() => {
-    if (!isInitialized) return; // Wait for initialization
+    if (!isInitialized) return;
     
     if (currentChat?.messages) {
-      // Map server messages to display format, handling timestamp field
       const serverMessages = currentChat.messages.map((msg: any) => ({
         _id: msg._id || `msg-${Date.now()}-${Math.random()}`,
         role: msg.role,
@@ -150,64 +152,48 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
         sources: msg.metadata?.sources,
       }));
       
-      // Only update if we're not currently sending a message or if server has more messages
-      // This prevents overwriting optimistic updates
-      setMessages(prevMessages => {
-        // If we're sending and server messages are same or fewer, keep current messages
-        if (isSending && serverMessages.length <= prevMessages.length) {
-          return prevMessages;
+      setMessages(serverMessages);
+      
+      // Clear pending message if any server message matches it
+      if (pendingUserMessage) {
+        const matchingMsg = serverMessages.find(msg => 
+          msg.role === 'user' && msg.content === pendingUserMessage.content
+        );
+        if (matchingMsg) {
+          setPendingUserMessage(null);
         }
-        
-        // If we have temporary messages (starting with 'temp-'), preserve them
-        const tempMessages = prevMessages.filter(msg => msg._id.startsWith('temp-'));
-        
-        // If we have temp messages and server messages don't include them yet, merge them
-        if (tempMessages.length > 0 && serverMessages.length < prevMessages.length) {
-          return [...serverMessages, ...tempMessages];
-        }
-        
-        return serverMessages;
-      });
-    } else if (!currentChatId) {
+      }
+    } else if (!currentChatId && !pendingUserMessage) {
       setMessages([welcomeMessage]);
     }
-  }, [currentChat?.messages, currentChatId, isInitialized, welcomeMessage, isSending]);
+  }, [currentChat?.messages, currentChatId, isInitialized, welcomeMessage, pendingUserMessage]);
 
-  // Auto-scroll to bottom when messages change or on initial load - optimized with scrollToBottom dependency
+  // Combined scroll management and cleanup
   useEffect(() => {
-    if (messages.length > 0 && !isUserScrolling) {
-      // Use setTimeout to ensure DOM has updated
-      setTimeout(scrollToBottom, 100);
-    }
-  }, [messages, isUserScrolling, scrollToBottom]);
-
-  // Auto-scroll when loading state changes (for smooth UX during message sending) - optimized with scrollToBottom dependency
-  useEffect(() => {
-    if (isSending) {
-      setShouldAutoScroll(true); // Always auto-scroll when sending a message
-      setTimeout(scrollToBottom, 100);
-    }
-  }, [isSending, scrollToBottom]);
-
-  // Set up scroll event listener - add handleScroll dependency
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.addEventListener('scroll', handleScroll);
-        return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    // Auto-scroll when messages change or sending state changes
+    if ((messages.length > 0 || pendingUserMessage || isSending) && !isUserScrolling) {
+      if (isSending) {
+        setShouldAutoScroll(true);
       }
+      setTimeout(scrollToBottom, 100);
     }
-  }, [handleScroll]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
+    // Set up scroll event listener
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll);
+    }
+
+    // Cleanup function
     return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      }
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, []);
+  }, [messages, pendingUserMessage, isSending, isUserScrolling, scrollToBottom, handleScroll]);
 
 
   const handleSendMessage = useCallback(async () => {
@@ -224,7 +210,7 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
       createdAt: new Date().toISOString(),
     };
     
-    setMessages(prev => [...prev, userMessage]);
+    setPendingUserMessage(userMessage);
 
     sendMessage(
       { message: messageText, userId: user.id, chatId: currentChatId || undefined },
@@ -237,12 +223,12 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
           
         },
         onError: () => {
-          // Remove the temporary user message on error
-          setMessages(prev => prev.filter(msg => msg._id !== userMessage._id));
+          // Remove the pending user message on error
+          setPendingUserMessage(null);
         }
       }
     );
-  }, [inputValue, isSending, hasCompletedDocuments, sendMessage, user.id, currentChatId]);
+  }, [inputValue, isSending, hasCompletedDocuments, sendMessage, currentChatId]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -297,6 +283,17 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
               formatTimestamp={formatTimestamp}
             />
           ))}
+          
+          {/* Pending user message - only show if not already in server messages */}
+          {pendingUserMessage && !messages.some(msg => 
+            msg.role === 'user' && msg.content === pendingUserMessage.content
+          ) && (
+            <MessageItem
+              key={pendingUserMessage._id}
+              message={pendingUserMessage}
+              formatTimestamp={formatTimestamp}
+            />
+          )}
 
           {/* Enhanced Loading Indicator */}
           {isSending && (
@@ -304,7 +301,7 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
               className="flex gap-4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
             >
                <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
                 <Bot className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -313,14 +310,14 @@ export const ChatInterface = memo(({ user }: ChatInterfaceProps) => {
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-center gap-3">
                     {/* Animated dots */}
-                    <div className="flex gap-1">
+                    <div className="flex gap-1.5">
                       {[0, 1, 2].map((i) => (
                         <motion.div
                           key={i}
                           className="w-2 h-2 bg-current rounded-full opacity-60"
                           animate={{
-                            scale: [1, 1.2, 1],
-                            opacity: [0.6, 1, 0.6],
+                            scale: [1, 1.5, 1],
+                            opacity: [0.4, 1, 0.4],
                           }}
                           transition={{
                             duration: 1.5,

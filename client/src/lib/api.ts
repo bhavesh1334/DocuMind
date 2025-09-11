@@ -29,6 +29,16 @@ export interface Document {
     pages?: number;
     wordCount?: number;
     url?: string;
+    // YouTube-specific metadata
+    author?: string;
+    duration?: number;
+    durationFormatted?: string;
+    videoId?: string;
+    platform?: string;
+    description?: string;
+    language?: string;
+    hasTranscript?: boolean;
+    extractedAt?: string;
   };
   createdAt: string;
   updatedAt: string;
