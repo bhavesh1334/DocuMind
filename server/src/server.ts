@@ -57,7 +57,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.openai.com", "https://*.onrender.com"],
+      connectSrc: ["'self'", "https://api.openai.com", "https://*.onrender.com", "https://*.netlify.app/"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
     },
