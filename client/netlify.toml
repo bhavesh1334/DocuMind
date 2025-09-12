@@ -1,0 +1,30 @@
+# netlify.toml
+[build]
+  # Build command for Vite
+  command = "npm run build"
+  
+  # Publish directory - Vite builds to 'dist' by default, not 'client'
+  publish = "dist"
+  
+  # Base directory if your frontend is in a subdirectory
+  # Remove this line if your package.json is in the root
+  # base = "client"
+
+# Redirect rules for Single Page Application (SPA)
+# This ensures all routes are handled by React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Optional: Environment variables
+# [build.environment]
+#   NODE_VERSION = "18"
+
+# Optional: Headers for security and performance
+# [[headers]]
+#   for = "/*"
+#   [headers.values]
+#     X-Frame-Options = "DENY"
+#     X-XSS-Protection = "1; mode=block"
+#     X-Content-Type-Options = "nosniff"
