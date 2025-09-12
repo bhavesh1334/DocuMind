@@ -91,13 +91,11 @@ export const Landing = ({ onUserAuthenticated }: LandingProps) => {
           <CardContent>
             <Tabs defaultValue="create" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="create" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
+                <TabsTrigger value="create" className="flex items-center">
                   New User
                 </TabsTrigger>
-                <TabsTrigger value="login" className="flex items-center gap-2">
-                  <LogIn className="h-4 w-4" />
-                  Existing User
+                <TabsTrigger value="login" className="flex items-center">
+                  Login
                 </TabsTrigger>
               </TabsList>
 

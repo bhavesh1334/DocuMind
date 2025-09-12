@@ -324,7 +324,7 @@ export const FileUploadSection = ({ user, hideHeader = false }: FileUploadSectio
       <div className="flex-1 overflow-y-auto">
         <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
           <Tabs defaultValue="upload" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-9 sm:h-10">
+            <TabsList className="grid w-full grid-cols-3 p-1">
               <TabsTrigger value="upload" className="gap-1 sm:gap-2 text-xs sm:text-sm">
                 <Upload className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden xs:inline">Files</span>
