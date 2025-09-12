@@ -53,24 +53,56 @@ const server = createServer(app);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+const allowedOrigins = [
+  'http://localhost:3000', // Local development
+  'https://documinds.netlify.app', // Netlify production
+  'https://documinds.netlify.app/*', // Allow all subpaths
+  process.env.FRONTEND_URL, // Fallback to FRONTEND_URL if set
+].filter(Boolean) as string[]; // Filter out any undefined values
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.openai.com", "https://*.onrender.com", "https://*.netlify.app/"],
+      connectSrc: [
+        "'self'", 
+        "https://api.openai.com", 
+        "https://documinds.netlify.app"
+      ],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      fontSrc: ["'self'", "https:"],
     },
   },
 }));
+
 app.use(
   cors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? [process.env.FRONTEND_URL, /\.onrender\.com$/].filter((origin): origin is string | RegExp => origin !== undefined)
-      : '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, Postman)
+      if (!origin) return callback(null, true);
+      
+      // Check if the origin is in the allowed list
+      if (allowedOrigins.some(allowedOrigin => 
+        origin === allowedOrigin || 
+        origin.startsWith(allowedOrigin.replace('*', ''))
+      )) {
+        return callback(null, true);
+      }
+      
+      // For development, you might want to log the blocked origin
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Blocked CORS for origin:', origin);
+      }
+      
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+    maxAge: 86400, // 24 hours
   })
 );
 app.use(express.json({ limit: "10mb" }));
